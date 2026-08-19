@@ -172,7 +172,7 @@ class S3Storage(Storage):
         if not names:
             return
 
-        # Since capo-s3 have broker delete_objects for now we use threads
+        # Since capo-s3 have broken delete_objects for now we use threads
         # Issue:https://github.com/kap-sh/capo/issues/34
         with ThreadPoolExecutor(max_workers=min(concurrency, len(names))) as pool:
             list(pool.map(self.delete, names))
