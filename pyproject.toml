@@ -51,8 +51,8 @@ test = [
     "pytest-timeout>=2.4.0",
 ]
 types = [
-    "ty>=0.0.72",
-    "django-types>=0.24.0",
+    "mypy>=2.3.1",
+    "django-stubs[compatible-mypy]>=6.0.9",
 ]
 
 [build-system]
@@ -104,5 +104,8 @@ ignore = [
 "django.test.TestCase".msg = "Use pytest-style tests."
 "__future__.annotations".msg = "Use normal type annotation. Use string type annotations only in a targeted manner."
 
-[tool.ty.environment]
-root = ["src"]
+[tool.mypy]
+plugins = ["mypy_django_plugin.main"]
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"

@@ -19,7 +19,7 @@ run_infra: ## Run S3 compatible docker container
 .PHONY: lint
 lint: ## Run linters
 	@uv run ruff check .
-	@uv run ty check
+	@uv run mypy src
 
 .PHONY: format
 format: ## Run formatters

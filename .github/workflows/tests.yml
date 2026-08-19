@@ -27,8 +27,29 @@ jobs:
           enable-cache: true
           version: "latest"
           python-version: "3.12"
-      - name: Run linters
+      - name: Install dependencies
+        run: uv sync --group lint
+      - name: Run ruff
         run: uv run ruff check src tests
+      - name: Run zizmor
+        run: uv run zizmor .github
+
+  type-check:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+          version: "latest"
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --group types
+      - name: Run type checkers
+        run: uv run mypy src
 
   python-tests:
     name: Python tests
@@ -37,6 +58,16 @@ jobs:
       fail-fast: true
       matrix:
         python-version: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
+        django-version: [ "5.2", "6.0", "6.1" ]
+        exclude:
+          - python-version: "3.10"
+            django-version: "6.0"
+          - python-version: "3.11"
+            django-version: "6.0"
+          - python-version: "3.10"
+            django-version: "6.1"
+          - python-version: "3.11"
+            django-version: "6.1"
     services:
       minio:
         image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
@@ -63,7 +94,5 @@ jobs:
           cache-suffix: ${{ matrix.python-version }}
           version: "latest"
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: uv sync --all-extras
       - name: Run tests
-        run: uv run pytest
+        run: uv run --group test --with "django==${{ matrix.django-version }}" pytest

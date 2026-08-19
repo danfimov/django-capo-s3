@@ -18,11 +18,6 @@ repos:
         pass_filenames: false
         args: ["--no-progress", ".github/workflows"]
 
-  - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: v0.0.72
-    hooks:
-      - id: ty
-
   - repo: builtin
     hooks:
       - id: trailing-whitespace
