@@ -16,7 +16,7 @@ client instead of boto3 — a drop-in alternative to `django-storages[s3]`.
 - **Server-side encryption, storage class, cache-control, metadata, ...** — via `object_parameters`, passed straight
   through to the underlying request.
 - **Flexible networking options** — custom endpoint (e.g. MinIO), path- or virtual-host addressing, TLS verification and
-  custom CA  bundles, connection timeouts, pool size, HTTP/HTTPS/SOCKS5 proxies, and retry attempts.
+  custom CA bundles, connection timeouts, pool size, HTTP/HTTPS/SOCKS5 proxies, and retry attempts.
 - **Fully typed** — this is already the bare minimum for new packages.
 
 ## Installation
@@ -97,6 +97,15 @@ storage.url(
 ```
 
 For a public bucket, set `"querystring_auth": False` in `OPTIONS` to get plain, cacheable URLs instead.
+
+### Bulk delete
+
+`delete_objects()` removes many objects in one call, deleting them concurrently. Missing keys are ignored, just
+like `delete()`.
+
+```python
+storage.delete_objects(["reports/jan.csv", "reports/feb.csv", "reports/mar.csv"])
+```
 
 ### Static files with cache-busting
 
