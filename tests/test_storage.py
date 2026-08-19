@@ -53,6 +53,31 @@ def test_delete_is_idempotent(storage: S3Storage):
     storage.delete(name)  # deleting a missing key must not raise
 
 
+def test_delete_objects_removes_all_keys(storage: S3Storage):
+    names = [storage.save(f"bulk/{i}.txt", ContentFile(b"x")) for i in range(5)]
+    storage.delete_objects(names)
+    assert all(not storage.exists(name) for name in names)
+
+
+def test_delete_objects_tolerates_missing_keys(storage: S3Storage):
+    name = storage.save("present.txt", ContentFile(b"x"))
+    storage.delete_objects([name, "never/existed.txt"])  # missing keys count as deleted
+    assert not storage.exists(name)
+
+
+def test_delete_objects_clears_many_keys_under_a_prefix(
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+):
+    storage = storage_factory(location="many")
+    names = [f"obj-{i}.txt" for i in range(40)]  # more than the delete concurrency, to exercise batching
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        list(pool.map(lambda n: s3_client.put_object(bucket, f"many/{n}", body=b"x", content_length=1), names))
+    storage.delete_objects(names)
+    assert not s3_client.list_objects_v2(bucket, prefix="many/").get("contents")
+
+
 def test_url_presigned_by_default(storage: S3Storage):
     storage.save("file.txt", ContentFile(b"x"))
     url = storage.url("file.txt")

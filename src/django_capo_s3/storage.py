@@ -1,5 +1,6 @@
 import gzip
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import cached_property
 from http import HTTPStatus
@@ -165,6 +166,16 @@ class S3Storage(Storage):
             self.client.delete_object(self.bucket, self.key(name))
         except (NoSuchKey, NotFound):
             return
+
+    def delete_objects(self, names: list[str], concurrency: int = 16) -> None:
+        """Delete many objects concurrently."""
+        if not names:
+            return
+
+        # Since capo-s3 have broker delete_objects for now we use threads
+        # Issue:https://github.com/kap-sh/capo/issues/34
+        with ThreadPoolExecutor(max_workers=min(concurrency, len(names))) as pool:
+            list(pool.map(self.delete, names))
 
     def exists(self, name: str) -> bool:
         """Report whether an object with this name is already stored."""
