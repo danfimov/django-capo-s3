@@ -163,6 +163,41 @@ def test_write_mode_file_flushes_on_close(storage: S3Storage):
         assert reopened.read() == b"streamed"
 
 
+def test_text_mode_read_returns_str(storage: S3Storage):
+    storage.save("poem.txt", ContentFile("café\nnaïve".encode()))
+    with storage.open("poem.txt", "rt") as handle:
+        content = handle.read()
+    assert content == "café\nnaïve"
+    assert isinstance(content, str)
+
+
+def test_text_mode_iterates_by_line(storage: S3Storage):
+    storage.save("lines.txt", ContentFile(b"one\ntwo\nthree"))
+    with storage.open("lines.txt", "rt") as handle:
+        assert list(handle) == ["one\n", "two\n", "three"]
+
+
+def test_text_mode_write_roundtrips_non_ascii(storage: S3Storage, bucket: str, s3_client: S3Client):
+    handle = storage.open("greeting.txt", "wt")
+    handle.write("héllo wörld")
+    handle.close()
+    # Stored as UTF-8 bytes on the wire...
+    with s3_client.get_object(bucket, "greeting.txt") as out:
+        assert b"".join(out["body"]) == "héllo wörld".encode()
+    # ...and decoded back to str on a text read.
+    with storage.open("greeting.txt", "rt") as reopened:
+        assert reopened.read() == "héllo wörld"
+
+
+def test_non_ascii_text_upload_is_not_truncated(storage: S3Storage, bucket: str, s3_client: S3Client):
+    """A multi-byte character must upload its full byte length, not a char count, and pass MinIO's v4 check."""
+    text = "héllo" * 100  # 500 chars, 600 UTF-8 bytes
+    name = storage.save("unicode.txt", ContentFile(text.encode()))
+    assert s3_client.head_object(bucket, "unicode.txt")["content_length"] == len(text.encode())
+    with storage.open(name) as handle:
+        assert handle.read() == text.encode()
+
+
 def test_storages_registration_roundtrip(s3_client: S3Client):
     storage = storages["default"]
     assert isinstance(storage, S3Storage)

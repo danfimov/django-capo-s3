@@ -31,6 +31,24 @@ def test_gzip_compresses_matching_content_types(
         assert handle.read() == body
 
 
+def test_gzipped_object_must_still_be_openable_in_text_mode_and_yield_decoded_str(
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+):
+    storage = storage_factory(gzip=True)
+    body = "body{content:'café'}" * 50
+    storage.save("style.css", ContentFile(body.encode()))
+
+    with s3_client.get_object(bucket, "style.css") as out:
+        assert out.get("content_encoding") == "gzip"  # stored compressed
+
+    with storage.open("style.css", "rt") as handle:
+        content = handle.read()
+    assert content == body
+    assert isinstance(content, str)
+
+
 def test_gzip_skips_non_matching_content_types(
     storage_factory: Callable[..., S3Storage],
     bucket: str,
