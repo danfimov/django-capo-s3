@@ -60,7 +60,7 @@ class S3File(File):
             return self.raw
         if self._text is None:
             self._text = io.TextIOWrapper(
-                self.raw,  # type: ignore[arg-type]  # a text handle always backs `raw` with a BytesIO
+                self.raw,  # a text handle always backs `raw` with a BytesIO
                 encoding="utf-8",
                 newline="",  # keeps byte-for-byte round trips: no \r\n <-> \n translation on read or write.
             )
