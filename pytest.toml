@@ -1,0 +1,15 @@
+[pytest]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+addopts = [
+    "--durations=10",
+    "--durations-min=1.0",
+
+    "--timeout=2",
+    "--timeout-method=signal",
+
+    "-p no:pastebin",
+    "-p no:doctest",
+    "-p no:legacypath",
+]
