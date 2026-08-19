@@ -27,8 +27,12 @@ jobs:
           enable-cache: true
           version: "latest"
           python-version: "3.12"
-      - name: Run linters
+      - name: Install dependencies
+        run: uv sync --group lint
+      - name: Run ruff
         run: uv run ruff check src tests
+      - name: Run zizmor
+        run: uv run zizmor .github
 
   type-check:
     name: Lint
@@ -42,6 +46,8 @@ jobs:
           enable-cache: true
           version: "latest"
           python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --group types
       - name: Run type checkers
         run: uv run ty check
 
@@ -80,7 +86,7 @@ jobs:
           version: "latest"
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --group test
       - name: Install django version
         run: uv add "django==${{ matrix.django-version }}"
       - name: Run tests
