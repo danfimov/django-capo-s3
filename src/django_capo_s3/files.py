@@ -8,11 +8,6 @@ if TYPE_CHECKING:
     from django_capo_s3.storage import S3Storage
 
 
-# Django types File as File[AnyStr] — a single handle is either bytes or str at the type level. This handle
-# instead decides at runtime from its mode, so read/write are genuinely bytes | str. Bare File (which mypy
-# reads as File[Any] — it isn't subscriptable at runtime) lets the precise signatures through; the two
-# [override] ignores below flag where a single dual-mode class can't fit that single-typed model (short of
-# fixing it upstream in django-stubs).
 class S3File(File):
     """A lazy, buffered handle to a single S3 object.
 
