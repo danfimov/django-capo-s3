@@ -35,7 +35,7 @@ jobs:
         run: uv run zizmor .github
 
   type-check:
-    name: Lint
+    name: Type check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --group types
       - name: Run type checkers
-        run: uv run ty check
+        run: uv run mypy src
 
   python-tests:
     name: Python tests

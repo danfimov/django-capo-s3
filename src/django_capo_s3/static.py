@@ -23,7 +23,7 @@ class S3StaticStorage(S3Storage):
 
 # Django's HashedFilesMixin.url(name, force=False) is a narrower override than S3Storage.url(name, *, expire=...);
 # harmless here because hashed static assets are always served as unsigned URLs, so expire never applies.
-class S3ManifestStaticStorage(ManifestFilesMixin, S3StaticStorage):  # ty: ignore[invalid-method-override]
+class S3ManifestStaticStorage(ManifestFilesMixin, S3StaticStorage):  # type: ignore[misc]
     """S3 static storage that adds content-hashed names and a manifest.
 
     During collectstatic each file is stored under a content-hashed name like style.<hash>.css, references

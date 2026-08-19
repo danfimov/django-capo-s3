@@ -51,7 +51,7 @@ class S3File(File):
             return self.file.read()
         return self.file.read(size)
 
-    def write(self, content: bytes) -> int:
+    def write(self, content: bytes) -> int:  # type: ignore[override]  # binary-only handle; narrows IO.write to bytes
         """Buffer written data in memory; it is flushed to S3 when the file is closed."""
         if "w" not in self.mode:
             msg = "File was not opened in write mode."

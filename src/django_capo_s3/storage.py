@@ -185,7 +185,7 @@ class S3Storage(Storage):
             return last_modified
         return timezone.make_naive(last_modified)
 
-    def url(
+    def url(  # type: ignore[override]  # extends Django's Storage.url(name) with S3-specific presigning options
         self,
         name: str,
         *,
@@ -219,7 +219,7 @@ class S3Storage(Storage):
                 self.bucket,
                 key,
                 expire,
-                **parameters,  # ty: ignore[invalid-argument-type]
+                **parameters,  # type: ignore[arg-type]
             )
         if method == "HEAD":
             return self.client.presigned_head_object(self.bucket, key, expire)

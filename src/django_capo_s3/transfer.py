@@ -49,7 +49,7 @@ class S3Uploader:
             content_type=meta.content_type,
             content_encoding=meta.content_encoding,
             acl=meta.acl,
-            **meta.extra,  # ty: ignore[invalid-argument-type]
+            **meta.extra,  # type: ignore[arg-type]
         )
 
     def _multipart(self, bucket: str, key: str, content: File, meta: ObjectMeta) -> None:
@@ -59,7 +59,7 @@ class S3Uploader:
             content_type=meta.content_type,
             content_encoding=meta.content_encoding,
             acl=meta.acl,
-            **meta.extra,  # ty: ignore[invalid-argument-type]
+            **meta.extra,  # type: ignore[arg-type]
         )
         upload_id = created["upload_id"]
         try:
