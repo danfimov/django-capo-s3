@@ -1,0 +1,108 @@
+[project]
+name = "django-capo-s3"
+description = "Support for S3 storage backend in Django"
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dynamic = ["version"]
+requires-python = ">=3.10"
+dependencies = [
+    "capo-s3>=0.11.0",
+    "cryptography>=50.0.0",
+    "django>=5.2",
+]
+
+[project.urls]
+Documentation = "https://github.com/danfimov/django-capo-s3"
+Repository = "https://github.com/danfimov/django-capo-s3"
+Changelog = "https://github.com/danfimov/django-capo-s3/releases"
+
+[dependency-groups]
+dev = [
+    "prek>=0.4.14",
+    {include-group = "lint"},
+    {include-group = "types"},
+    {include-group = "test"},
+]
+lint = [
+    "ruff>=0.16.3",
+    "zizmor>=1.29.0",
+]
+test = [
+    "pytest>=9.1.1",
+    "pytest-codspeed>=5.0.3",
+    "pytest-django>=4.14.0",
+    "pytest-timeout>=2.4.0",
+]
+types = [
+    "ty>=0.0.72",
+    "django-types>=0.24.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/django_capo_s3/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/django_capo_s3"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/django_capo_s3",
+  "README.md",
+  "LICENSE",
+]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "ALL",
+]
+ignore = [
+    "CPY",
+    "D203",  # conflicting with D211
+    "D213",  # conflicting with D212
+    "D413",
+    "D100",
+    "D104",
+    "COM812",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "D",
+    "ANN",
+    "PLR2004",
+    "S101",
+    "INP001",  # test directories are not import packages
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"unittest.TestCase".msg = "Use pytest-style tests."
+"django.test.TestCase".msg = "Use pytest-style tests."
+"__future__.annotations".msg = "Use normal type annotation. Use string type annotations only in a targeted manner."
+
+[tool.ty.environment]
+root = ["src"]
