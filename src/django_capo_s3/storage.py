@@ -2,10 +2,11 @@ import gzip
 import time
 from datetime import datetime
 from functools import cached_property
+from http import HTTPStatus
 
 from capo_s3 import CredentialsProvider, ProfileCredentialsProvider, S3Client
-from capo_s3.errors import NoSuchKey, NotFound
-from capo_s3.types.object import Object
+from capo_s3.errors import NoSuchKey, NotFound, UnknownServiceError
+from capo_s3.types.head_object_output import HeadObjectOutput
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile, File
@@ -167,17 +168,19 @@ class S3Storage(Storage):
 
     def exists(self, name: str) -> bool:
         """Report whether an object with this name is already stored."""
-        key = self.key(name)
-        result = self.client.list_objects_v2(self.bucket, prefix=key, max_keys=1)
-        return any(obj.get("key") == key for obj in result.get("contents", []))
+        try:
+            self._head(name)
+        except FileNotFoundError:
+            return False
+        return True
 
     def size(self, name: str) -> int:
         """Return the stored size in bytes — the compressed size for gzipped objects."""
-        return self._stat(name).get("size", 0)
+        return self._head(name).get("content_length", 0)
 
     def get_modified_time(self, name: str) -> datetime:
         """Return the last-modified time, made naive in the current zone when USE_TZ is off."""
-        last_modified = self._stat(name).get("last_modified")
+        last_modified = self._head(name).get("last_modified")
         if last_modified is None:
             msg = f"No last-modified time available for: {name}"
             raise FileNotFoundError(msg)
@@ -195,10 +198,11 @@ class S3Storage(Storage):
     ) -> str:
         """Return a URL for an object.
 
-        For a custom domain: a CloudFront-signed URL when a signing key is configured, otherwise a plain
-        public URL. Otherwise: a presigned S3 URL, unless signing is turned off. Pass expire to override the
-        signed URL's lifetime, http_method to sign a HEAD instead of a GET, and parameters to add response
-        overrides such as {"response_content_disposition": "attachment"} to a presigned GET.
+        For a custom domain: a CloudFront-signed URL when a signing key is configured, otherwise a plain public URL.
+        Otherwise: a presigned S3 URL, unless signing is turned off. Pass expire to override the signed URL's lifetime,
+        http_method to sign a HEAD or PUT instead of a GET, and parameters to add response overrides such as
+        {"response_content_disposition": "attachment"} to a presigned GET, or upload headers such as
+        {"content_type": "image/png"} to a presigned PUT.
         """
         key = self.key(name)
         expires_in = expire if expire is not None else self.options["url_expire"]
@@ -223,8 +227,14 @@ class S3Storage(Storage):
             )
         if method == "HEAD":
             return self.client.presigned_head_object(self.bucket, key, expire)
-        # capo-s3 0.11's presigned_put_object raises KeyError('body'), so only GET and HEAD are usable.
-        msg = f"Unsupported http_method for url(): {http_method!r} (only GET and HEAD are supported)."
+        if method == "PUT":
+            return self.client.presigned_put_object(
+                self.bucket,
+                key,
+                expire,
+                **parameters,  # type: ignore[arg-type]
+            )
+        msg = f"Unsupported http_method for url(): {http_method!r} (only GET, HEAD and PUT are supported)."
         raise ValueError(msg)
 
     def listdir(self, path: str) -> tuple[list[str], list[str]]:
@@ -262,19 +272,23 @@ class S3Storage(Storage):
             return name
         return super().get_available_name(name, max_length)
 
-    def _stat(self, name: str) -> Object:
-        """Return the listing entry for a key, or raise FileNotFoundError when it is missing.
+    def _head(self, name: str) -> HeadObjectOutput:
+        """Return an object's metadata, or raise FileNotFoundError when it is missing.
 
-        Uses list_objects_v2 instead of head_object: capo's HEAD error handler tries to XML-parse the response
-        body, but a 404 HEAD has none, so a missing key would surface as a ParseError instead of NotFound.
+        A single HEAD needs only s3:GetObject, unlike a listing's s3:ListBucket. A missing key surfaces as
+        NotFound on real S3, but MinIO answers a 404 HEAD with an empty body, which capo maps to
+        UnknownServiceError — so treat a 404 either way as absent and re-raise anything else.
         """
-        key = self.key(name)
-        result = self.client.list_objects_v2(self.bucket, prefix=key, max_keys=1)
-        for obj in result.get("contents", []):
-            if obj.get("key") == key:
-                return obj
-        msg = f"File does not exist: {name}"
-        raise FileNotFoundError(msg)
+        try:
+            return self.client.head_object(self.bucket, self.key(name))
+        except NotFound as exc:
+            msg = f"File does not exist: {name}"
+            raise FileNotFoundError(msg) from exc
+        except UnknownServiceError as exc:
+            if getattr(getattr(exc, "response", None), "status", None) == HTTPStatus.NOT_FOUND:
+                msg = f"File does not exist: {name}"
+                raise FileNotFoundError(msg) from exc
+            raise
 
     def _should_gzip(self, content_type: str | None) -> bool:
         return bool(

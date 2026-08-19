@@ -77,9 +77,9 @@ def test_url_head_method_is_presigned(storage: S3Storage):
     assert "X-Amz-Signature" in storage.url("file.txt", http_method="HEAD")
 
 
-def test_url_put_method_is_rejected(storage: S3Storage):
-    with pytest.raises(ValueError, match="only GET and HEAD"):
-        storage.url("file.txt", http_method="PUT")
+def test_url_unsupported_method_is_rejected(storage: S3Storage):
+    with pytest.raises(ValueError, match="only GET, HEAD and PUT"):
+        storage.url("file.txt", http_method="DELETE")
 
 
 def test_listdir_splits_dirs_and_files(storage: S3Storage):
