@@ -94,9 +94,5 @@ jobs:
           cache-suffix: ${{ matrix.python-version }}
           version: "latest"
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: uv sync --group test
-      - name: Install django version
-        run: uv add "django==${{ matrix.django-version }}"
       - name: Run tests
-        run: uv run pytest
+        run: uv run --group test --with "django==${{ matrix.django-version }}" pytest
