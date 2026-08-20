@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import cached_property
 from http import HTTPStatus
-from typing import cast
+from typing import Unpack, cast
 
 from capo_s3 import (
     AssumeRoleCredentialsProvider,
@@ -24,7 +24,7 @@ from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
 from django.utils import timezone
 from django.utils.deconstruct import deconstructible
-from typing_extensions import Unpack, override
+from typing_extensions import override
 from zapros import BaseHandler, Client, StdNetworkHandler, SyncTransport
 
 from django_capo_s3.cloudfront import CloudFrontSigner
