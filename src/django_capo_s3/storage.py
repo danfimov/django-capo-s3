@@ -326,10 +326,7 @@ class S3Storage(Storage):
         return super().get_available_name(name, max_length)
 
     def _head(self, name: str) -> HeadObjectOutput:
-        """Return an object's metadata, or raise FileNotFoundError when it is missing.
-
-        A single HEAD needs only s3:GetObject, unlike a listing's s3:ListBucket.
-        """
+        """Return an object's metadata, or raise FileNotFoundError when it is missing."""
         try:
             return self.client.head_object(self.bucket, self.key(name))
         except NotFound as exc:
