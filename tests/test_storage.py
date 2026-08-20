@@ -85,8 +85,13 @@ def test_url_presigned_by_default(storage: S3Storage):
 
 
 def test_url_custom_domain_is_plain(storage_factory: Callable[..., S3Storage]):
-    storage = storage_factory(custom_domain="cdn.example.com")
+    storage = storage_factory(custom_domain="cdn.example.com", force_path_style=False)
     assert storage.url("a/b.txt") == "https://cdn.example.com/a/b.txt"
+
+
+def test_url_custom_domain_path_style_includes_bucket():
+    storage = S3Storage(bucket="b", custom_domain="localhost:9000", force_path_style=True, url_protocol="http")
+    assert storage.url("a/b.txt") == "http://localhost:9000/b/a/b.txt"
 
 
 def test_url_expire_override(storage: S3Storage):

@@ -49,6 +49,16 @@ def test_build_public_url_custom_domain():
     assert core.build_public_url(options, "k/x.txt") == "https://cdn.example.com/k/x.txt"
 
 
+def test_build_public_url_custom_domain_path_style_prepends_bucket():
+    options: core.S3StorageOptions = {
+        "bucket": "b",
+        "custom_domain": "localhost:9000",
+        "force_path_style": True,
+        "url_protocol": "http",
+    }
+    assert core.build_public_url(options, "k/x.txt") == "http://localhost:9000/b/k/x.txt"
+
+
 def test_build_public_url_path_style_endpoint():
     options: core.S3StorageOptions = {
         "bucket": "b",

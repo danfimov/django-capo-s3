@@ -172,6 +172,13 @@ distribution.
 # storage.url(name) -> https://d123.cloudfront.net/...?Expires=...&Signature=...&Key-Pair-Id=...
 ```
 
+Response overrides passed to `url()` are signed into the CloudFront URL, so they can't be tampered with —
+configure the distribution to forward them to the S3 origin for them to take effect:
+
+```python
+storage.url("report.pdf", parameters={"response_content_disposition": 'attachment; filename="report.pdf"'})
+```
+
 ### Large uploads and gzip
 
 Uploads switch to a concurrent multipart transfer above `multipart_threshold`; text assets can be stored
@@ -203,6 +210,24 @@ and cache header.
         "cache_control": "max-age=86400",
     },
 }
+```
+
+### Self-hosted stores (MinIO) with a separate public host
+
+When the client reaches the store at an internal `endpoint` (say `http://minio:9000` inside Docker) but
+browsers must use a different public host, set `custom_domain` to that public host. With `force_path_style`
+the bucket goes into the URL path, matching how path-style S3 serves it.
+
+```python
+"OPTIONS": {
+    "bucket": "my-bucket",
+    "endpoint": "http://minio:9000",   # where the app connects
+    "custom_domain": "localhost:9000",  # where browsers connect
+    "force_path_style": True,
+    "url_protocol": "http",
+    "querystring_auth": False,
+}
+# storage.url("photo.jpg") -> http://localhost:9000/my-bucket/photo.jpg
 ```
 
 ### Networking (endpoint tuning, proxies)

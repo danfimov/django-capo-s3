@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Self, Unpack, cast
+from urllib.parse import urlencode
 
 from capo_s3 import (
     AssumeRoleCredentialsProvider,
@@ -273,7 +274,8 @@ class S3Storage(Storage):
         Otherwise: a presigned S3 URL, unless signing is turned off. Pass expire to override the signed URL's lifetime,
         http_method to sign a HEAD or PUT instead of a GET, and parameters to add response overrides such as
         {"response_content_disposition": "attachment"} to a presigned GET, or upload headers such as
-        {"content_type": "image/png"} to a presigned PUT.
+        {"content_type": "image/png"} to a presigned PUT. On a CloudFront-signed URL the response overrides are
+        signed in too; the distribution must be configured to forward them to the S3 origin.
         """
         key = self.key(name)
         expires_in = expire if expire is not None else self.options["url_expire"]
@@ -281,6 +283,9 @@ class S3Storage(Storage):
             public = build_public_url(self.options, key)
             signer = self._cloudfront_signer
             if signer is not None and self.options.get("querystring_auth"):
+                if parameters:
+                    query = urlencode({param.replace("_", "-"): value for param, value in parameters.items()})
+                    public = f"{public}?{query}"
                 return signer.signed_url(public, expires_at=int(time.time()) + expires_in)
             return public
         if self.options.get("querystring_auth"):

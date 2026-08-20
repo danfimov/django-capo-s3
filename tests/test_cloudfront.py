@@ -52,3 +52,27 @@ def test_storage_url_signs_with_cloudfront_when_configured():
 def test_storage_url_custom_domain_unsigned_without_key():
     storage = S3Storage(bucket="b", custom_domain="cdn.example.com")
     assert storage.url("media/a.txt") == "https://cdn.example.com/media/a.txt"
+
+
+def test_cloudfront_url_signs_in_response_overrides():
+    key, pem = _make_key()
+    storage = S3Storage(bucket="b", custom_domain="cdn.example.com", cloudfront_key=pem, cloudfront_key_id="KEYID123")
+
+    url = storage.url("media/a.pdf", parameters={"response_content_disposition": 'attachment; filename="a.pdf"'})
+
+    params = parse_qs(urlsplit(url).query)
+    # the override rides along as an S3-style query param...
+    assert params["response-content-disposition"] == ['attachment; filename="a.pdf"']
+    # ...and it is covered by the signature: the signed Resource is everything before the CloudFront params.
+    resource = url.split("&Expires=")[0]
+    assert "response-content-disposition" in resource
+    policy = json.dumps(
+        {
+            "Statement": [
+                {"Resource": resource, "Condition": {"DateLessThan": {"AWS:EpochTime": int(params["Expires"][0])}}},
+            ],
+        },
+        separators=(",", ":"),
+    ).encode()
+    signature = base64.b64decode(params["Signature"][0].translate(_CLOUDFRONT_B64_REVERSE))
+    key.public_key().verify(signature, policy, padding.PKCS1v15(), hashes.SHA1())  # noqa: S303  # raises if invalid
