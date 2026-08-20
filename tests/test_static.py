@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from capo_s3 import S3Client
+from dirty_equals import IsPartialDict
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 
@@ -24,8 +25,7 @@ def _record_uploads(monkeypatch: pytest.MonkeyPatch, storage: S3StaticStorage) -
 
 
 def test_plain_static_defaults(plain_static_storage: S3StaticStorage):
-    assert plain_static_storage.options["file_overwrite"] is True
-    assert plain_static_storage.options["querystring_auth"] is False
+    assert plain_static_storage.options == IsPartialDict(file_overwrite=True, querystring_auth=False)
 
 
 def test_plain_static_does_not_hash_and_serves_unsigned(plain_static_storage: S3StaticStorage):
@@ -37,8 +37,7 @@ def test_plain_static_does_not_hash_and_serves_unsigned(plain_static_storage: S3
 
 
 def test_defaults_are_static_friendly(manifest_static_storage: S3ManifestStaticStorage):
-    assert manifest_static_storage.options["file_overwrite"] is True
-    assert manifest_static_storage.options["querystring_auth"] is False
+    assert manifest_static_storage.options == IsPartialDict(file_overwrite=True, querystring_auth=False)
 
 
 def test_post_process_hashes_and_url_resolves(manifest_static_storage: S3ManifestStaticStorage):

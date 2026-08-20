@@ -6,7 +6,9 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
     "Framework :: Django",
+    "Framework :: Django :: 5",
     "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6",
     "Framework :: Django :: 6.0",
     "Framework :: Django :: 6.1",
     "Intended Audience :: Developers",
@@ -45,6 +47,7 @@ lint = [
     "zizmor>=1.29.0",
 ]
 test = [
+    "dirty-equals>=0.11",
     "pytest>=9.1.1",
     "pytest-codspeed>=5.0.3",
     "pytest-django>=4.14.0",

@@ -3,9 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from capo_s3 import S3Client
+from dirty_equals import IsNow, IsPartialDict
 from django.core.files.base import ContentFile
 from django.core.files.storage import storages
-from django.utils import timezone
 
 from django_capo_s3.storage import S3Storage
 
@@ -141,11 +141,8 @@ def test_missing_object_raises_file_not_found(storage: S3Storage):
 
 
 def test_get_modified_time_is_recent_and_aware(storage: S3Storage):
-    before = timezone.now()
     storage.save("stamp.txt", ContentFile(b"x"))
-    modified = storage.get_modified_time("stamp.txt")
-    assert modified.tzinfo is not None
-    assert abs((modified - before).total_seconds()) < 300
+    assert storage.get_modified_time("stamp.txt") == IsNow(tz="UTC", delta=300)
 
 
 def test_large_file_streaming_roundtrip(storage: S3Storage):
@@ -196,6 +193,22 @@ def test_non_ascii_text_upload_is_not_truncated(storage: S3Storage, bucket: str,
     assert s3_client.head_object(bucket, "unicode.txt")["content_length"] == len(text.encode())
     with storage.open(name) as handle:
         assert handle.read() == text.encode()
+
+
+def test_for_region_clones_with_overridden_region_and_caches():
+    base = S3Storage(bucket="b", region="us-east-1", location="media")
+    clone = base.for_region("eu-central-1")
+    assert clone is not base
+    assert clone.options == IsPartialDict(region="eu-central-1", location="media", bucket="b")
+    assert base.options["region"] == "us-east-1"  # base is left untouched
+    assert base.for_region("eu-central-1") is clone  # same region -> cached instance
+    assert base.for_region("us-east-1") is base  # the current region -> self
+
+
+def test_for_region_public_url_targets_the_new_region():
+    base = S3Storage(bucket="b", region="us-east-1", querystring_auth=False)
+    url = base.for_region("ap-southeast-2").url("a.txt")
+    assert url == "https://b.s3.ap-southeast-2.amazonaws.com/a.txt"
 
 
 def test_storages_registration_roundtrip(s3_client: S3Client):

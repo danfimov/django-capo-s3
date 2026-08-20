@@ -2,7 +2,7 @@ import gzip
 import time
 from datetime import datetime
 from functools import cached_property
-from typing import TYPE_CHECKING, Unpack, cast
+from typing import TYPE_CHECKING, Self, Unpack, cast
 
 from capo_s3 import (
     AssumeRoleCredentialsProvider,
@@ -63,6 +63,26 @@ class S3Storage(Storage):
     def bucket(self) -> str:
         """The target bucket name."""
         return self.options["bucket"]
+
+    @cached_property
+    def _region_clones(self) -> dict[str, Self]:
+        return {}
+
+    def for_region(self, region: str) -> Self:
+        """Return a storage bound to a different region, reusing this instance's other options.
+
+        Clones are cached per region, so repeated calls reuse the same client and connection pool. Build the
+        base storage once, then call for_region(...) to route objects to different regions at runtime — e.g.
+        from a FileField that picks the region per model instance.
+        """
+        if region == self.options.get("region"):
+            return self
+        clone = self._region_clones.get(region)
+        if clone is None:
+            options: S3StorageOptions = {**self.options, "region": region}
+            clone = type(self)(**options)
+            self._region_clones[region] = clone
+        return clone
 
     @cached_property
     def client(self) -> S3Client:
