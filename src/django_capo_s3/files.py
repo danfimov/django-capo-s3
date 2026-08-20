@@ -31,7 +31,6 @@ class S3File(File):
     def raw(self) -> SpooledTemporaryFile[bytes]:
         """The binary buffer, populated from S3 on first access in read mode; spills to disk past max_memory_size."""
         if self._raw is None:
-            # Kept open for the lifetime of the file; released in close().
             buffer: SpooledTemporaryFile[bytes] = SpooledTemporaryFile(  # noqa: SIM115
                 max_size=self._storage.options["max_memory_size"],
                 prefix="django-capo-s3.",
