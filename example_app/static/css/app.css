@@ -1,0 +1,8 @@
+.logo {
+  background: url("../img/logo.svg") no-repeat;
+  width: 16px;
+  height: 16px;
+}
+body {
+  color: #222;
+}

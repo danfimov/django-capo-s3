@@ -39,6 +39,7 @@ class S3StorageOptions(TypedDict, total=False):
     multipart_chunksize: int
     multipart_concurrency: int
     session_profile: str | None
+    skip_unchanged: bool
     retry_max_attempts: int | None
     connect_timeout: float | None
     read_timeout: float | None
@@ -80,6 +81,7 @@ DEFAULTS: Final[S3StorageOptions] = {
     "multipart_chunksize": 16 * 1024 * 1024,
     "multipart_concurrency": 4,
     "session_profile": None,
+    "skip_unchanged": False,
     "retry_max_attempts": None,
     "connect_timeout": None,
     "read_timeout": None,

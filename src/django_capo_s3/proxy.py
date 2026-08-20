@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 
+from typing_extensions import override
 from zapros import BaseHandler, Request, Response
 
 
@@ -19,6 +20,7 @@ class ProxyHandler(BaseHandler):
         """Return the proxy URL for a request scheme ("http"/"https"), or None to go direct."""
         return self._proxies.get(scheme)
 
+    @override
     def handle(self, request: Request) -> Response:
         """Attach the matching proxy to the request context, then delegate to the wrapped handler."""
         proxy = self.select_proxy(request.url.protocol.rstrip(":"))
@@ -26,6 +28,7 @@ class ProxyHandler(BaseHandler):
             request.context.setdefault("network", {})["proxy"] = {"url": proxy}
         return self._inner.handle(request)
 
+    @override
     def close(self) -> None:
         """Close the wrapped handler and its connection pool."""
         self._inner.close()

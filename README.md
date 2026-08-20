@@ -131,6 +131,11 @@ STORAGES["staticfiles"] = {
 }
 ```
 
+**Faster re-deploys.** During `collectstatic`, the hashing pass lists the bucket once and skips uploading any
+hashed asset whose content is already stored — so an unchanged deploy costs no uploads instead of re-uploading
+every file. This is on by default (`"skip_unchanged": True`); set it to `False` to fall back to Django's
+behaviour (for example, on an S3-compatible store whose ETag isn't a content MD5).
+
 ### Serving through a CDN (CloudFront)
 
 Set `custom_domain` for plain CDN URLs, or add a CloudFront key pair to sign them for a private
