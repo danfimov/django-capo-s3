@@ -1,5 +1,10 @@
 # django-capo-s3
 
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/django-capo-s3?style=for-the-badge)](https://pypi.org/project/django-capo-s3/)
+[![PyPI](https://img.shields.io/pypi/v/django-capo-s3?style=for-the-badge)](https://pypi.org/project/django-capo-s3/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/django-capo-s3?style=for-the-badge)](https://pypistats.org/packages/django-capo-s3)
+[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json&style=for-the-badge)](https://codspeed.io/danfimov/django-capo-s3?utm_source=badge)
+
 A Django file storage backend for S3-compatible object stores, built on the [capo-s3](https://pypi.org/project/capo-s3/)
 client instead of boto3 — a drop-in alternative to `django-storages[s3]`.
 
