@@ -29,3 +29,9 @@ format: ## Run formatters
 .PHONY: test
 test: ## Run tests
 	@uv run pytest
+
+.PHONY: example_collectstatic
+example_collectstatic: ## Run the example app's collectstatic against local MinIO
+	@uv run python example_app/probe.py ensure-bucket
+	@uv run python example_app/manage.py collectstatic --noinput
+	@uv run python example_app/probe.py list

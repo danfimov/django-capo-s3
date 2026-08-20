@@ -98,6 +98,12 @@ ignore = [
     "S101",
     "INP001",  # test directories are not import packages
 ]
+"example_app/**" = [
+    "D",
+    "INP001",  # example project, not an import package
+    "T201",  # print() is fine in the demo scripts
+    "S106",  # the local MinIO credentials are not a secret
+]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "unittest.TestCase".msg = "Use pytest-style tests."
@@ -106,7 +112,20 @@ ignore = [
 
 [tool.mypy]
 plugins = ["mypy_django_plugin.main"]
-warn_unused_ignores = true
+strict = true
+disallow_any_generics = false
+warn_unreachable = true
+enable_error_code = [
+    "explicit-override",
+    "ignore-without-code",
+    "redundant-expr",
+    "truthy-bool",
+    "truthy-iterable",
+    "possibly-undefined",
+    "mutable-override",
+    "redundant-self",
+    "deprecated",
+]
 
 [tool.django-stubs]
 django_settings_module = "tests.settings"

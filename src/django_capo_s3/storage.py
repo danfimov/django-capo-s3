@@ -24,7 +24,7 @@ from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
 from django.utils import timezone
 from django.utils.deconstruct import deconstructible
-from typing_extensions import Unpack
+from typing_extensions import Unpack, override
 from zapros import BaseHandler, Client, StdNetworkHandler, SyncTransport
 
 from django_capo_s3.cloudfront import CloudFrontSigner
@@ -179,7 +179,12 @@ class S3Storage(Storage):
         content.seek(0)
         key = self.key(name)
         if self._should_gzip(guess_content_type(name)):
-            body = ContentFile(gzip.compress(content.read()))
+            body = ContentFile(
+                gzip.compress(
+                    content.read(),
+                    mtime=0,  # keeps the compressed bytes reproducible run-to-run, so skip_unchanged can match by ETag
+                )
+            )
             self._uploader.upload(
                 self.bucket, key, content=body, size=body.size, meta=self._object_meta(name, content_encoding="gzip")
             )
@@ -187,10 +192,11 @@ class S3Storage(Storage):
             self._uploader.upload(self.bucket, key, content=content, size=content.size, meta=self._object_meta(name))
         return name
 
+    @override
     def delete(self, name: str) -> None:
         """Delete an object, treating an already-missing one as success."""
         try:
-            self.client.delete_object(self.bucket, self.key(name))
+            _ = self.client.delete_object(self.bucket, self.key(name))
         except (NoSuchKey, NotFound):
             return
 
@@ -204,6 +210,7 @@ class S3Storage(Storage):
         with ThreadPoolExecutor(max_workers=min(concurrency, len(names))) as pool:
             list(pool.map(self.delete, names))
 
+    @override
     def exists(self, name: str) -> bool:
         """Report whether an object with this name is already stored."""
         try:
@@ -212,10 +219,12 @@ class S3Storage(Storage):
             return False
         return True
 
+    @override
     def size(self, name: str) -> int:
         """Return the stored size in bytes — the compressed size for gzipped objects."""
         return self._head(name).get("content_length", 0)
 
+    @override
     def get_modified_time(self, name: str) -> datetime:
         """Return the last-modified time, made naive in the current zone when USE_TZ is off."""
         last_modified = self._head(name).get("last_modified")
@@ -226,6 +235,7 @@ class S3Storage(Storage):
             return last_modified
         return timezone.make_naive(last_modified)
 
+    @override
     def url(  # type: ignore[override]  # extends Django's Storage.url(name) with S3-specific presigning options
         self,
         name: str,
@@ -275,6 +285,7 @@ class S3Storage(Storage):
         msg = f"Unsupported http_method for url(): {http_method!r} (only GET, HEAD and PUT are supported)."
         raise ValueError(msg)
 
+    @override
     def listdir(self, path: str) -> tuple[list[str], list[str]]:
         """List the immediate subdirectories and files under a path, following pagination."""
         prefix = self.key(path) if path else self.options.get("location", "").strip("/")
@@ -304,6 +315,7 @@ class S3Storage(Storage):
             token = result.get("next_continuation_token")
         return directories, files
 
+    @override
     def get_available_name(self, name: str, max_length: int | None = None) -> str:
         """Reuse the given name when overwriting is enabled, otherwise fall back to Django's collision handling."""
         if self.options.get("file_overwrite"):

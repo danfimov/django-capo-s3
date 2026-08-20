@@ -2,11 +2,25 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 from capo_s3 import S3Client
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
 
 from django_capo_s3.static import S3ManifestStaticStorage, S3StaticStorage
+
+
+def _record_uploads(monkeypatch: pytest.MonkeyPatch, storage: S3StaticStorage) -> list[str]:
+    """Spy on the uploader so a test can assert which keys were actually PUT to the bucket."""
+    keys: list[str] = []
+    real = storage._uploader.upload  # noqa: SLF001
+
+    def spy(bucket: str, key: str, **kwargs: object) -> None:
+        keys.append(key)
+        return real(bucket, key, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(storage._uploader, "upload", spy)  # noqa: SLF001
+    return keys
 
 
 def test_plain_static_defaults(plain_static_storage: S3StaticStorage):
@@ -76,3 +90,89 @@ def test_manifest_storage_option_keeps_manifest_out_of_s3(
     assert not storage.exists(storage.manifest_name)
     # hashed asset itself still went to S3
     assert storage.exists(storage.stored_name("app.css"))
+
+
+def test_skip_unchanged_is_on_by_default(manifest_static_storage: S3ManifestStaticStorage):
+    assert manifest_static_storage.options["skip_unchanged"] is True
+    assert manifest_static_storage.keep_intermediate_files is False
+
+
+def test_second_collect_skips_unchanged_uploads(
+    manifest_static_storage: S3ManifestStaticStorage,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    storage = manifest_static_storage
+    storage.save("app.css", ContentFile(b"body{color:red}"))
+    paths = {"app.css": (storage, "app.css")}
+    list(storage.post_process(paths))  # first collect uploads the hashed asset + manifest
+
+    recorded = _record_uploads(monkeypatch, storage)
+    list(storage.post_process(paths))  # nothing changed on disk
+    assert recorded == []  # so nothing is re-uploaded
+
+
+def test_changed_content_is_reuploaded(
+    manifest_static_storage: S3ManifestStaticStorage,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    storage = manifest_static_storage
+    storage.save("app.css", ContentFile(b"body{color:red}"))
+    paths = {"app.css": (storage, "app.css")}
+    list(storage.post_process(paths))
+
+    storage.save("app.css", ContentFile(b"body{color:blue}"))  # content changes -> new hash
+    recorded = _record_uploads(monkeypatch, storage)
+    list(storage.post_process(paths))
+    assert any("app." in key for key in recorded)  # the new hashed asset is uploaded
+
+
+def test_skip_unchanged_disabled_always_uploads(
+    static_storage_factory: Callable[..., S3ManifestStaticStorage],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    storage = static_storage_factory(skip_unchanged=False)
+    storage.save("app.css", ContentFile(b"body{color:red}"))
+    paths = {"app.css": (storage, "app.css")}
+    list(storage.post_process(paths))
+
+    recorded = _record_uploads(monkeypatch, storage)
+    list(storage.post_process(paths))  # identical content, but optimization is off
+    assert recorded != []  # so Django's normal flow re-uploads
+
+
+def test_skip_is_by_content_not_mere_existence(
+    manifest_static_storage: S3ManifestStaticStorage,
+    monkeypatch: pytest.MonkeyPatch,
+    bucket: str,
+    s3_client: S3Client,
+):
+    # The skip must compare content, not just presence: an object sitting at the target key with *different*
+    # bytes has to be re-uploaded, otherwise a stale/corrupt object would be left in place forever.
+    storage = manifest_static_storage
+    storage.save("app.css", ContentFile(b"body{color:red}"))
+    paths = {"app.css": (storage, "app.css")}
+    list(storage.post_process(paths))
+
+    key = storage.key(storage.stored_name("app.css"))
+    s3_client.put_object(bucket, key, body=b"tampered", content_length=len(b"tampered"))  # same key, other bytes
+
+    recorded = _record_uploads(monkeypatch, storage)
+    list(storage.post_process(paths))  # source unchanged, but the stored object no longer matches
+    assert key in recorded  # so it is re-uploaded rather than skipped on existence
+    with s3_client.get_object(bucket, key) as out:
+        assert b"".join(out["body"]) == b"body{color:red}"  # correct content restored
+
+
+def test_gzipped_asset_skips_unchanged(
+    static_storage_factory: Callable[..., S3ManifestStaticStorage],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # CSS is gzipped at rest; the skip must still match on redeploy, which needs reproducible (mtime=0) gzip.
+    storage = static_storage_factory(gzip=True)
+    storage.save("app.css", ContentFile(b"body{color:red}" * 50))
+    paths = {"app.css": (storage, "app.css")}
+    list(storage.post_process(paths))
+
+    recorded = _record_uploads(monkeypatch, storage)
+    list(storage.post_process(paths))
+    assert recorded == []

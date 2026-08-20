@@ -3,6 +3,7 @@ from tempfile import SpooledTemporaryFile
 from typing import TYPE_CHECKING
 
 from django.core.files.base import File
+from typing_extensions import override
 
 if TYPE_CHECKING:
     from django_capo_s3.storage import S3Storage
@@ -50,7 +51,8 @@ class S3File(File):
         return self._raw
 
     @property
-    def file(self) -> "SpooledTemporaryFile[bytes] | io.BytesIO | io.TextIOWrapper":  # type: ignore[override]
+    @override
+    def file(self) -> "SpooledTemporaryFile[bytes] | io.BytesIO | io.TextIOWrapper":  # type: ignore[override, mutable-override]
         """The stream callers read and write through: a text wrapper in text mode, else the binary buffer.
 
         Both file operations (read, write, seek, ...) and iteration are forwarded here by FileProxyMixin, so
@@ -66,6 +68,7 @@ class S3File(File):
             )
         return self._text
 
+    @override
     def read(self, size: int | None = None) -> bytes | str:
         """Read from the buffer, either a given number of bytes/characters or the whole object."""
         if "r" not in self.mode:
@@ -75,6 +78,7 @@ class S3File(File):
             return self.file.read()
         return self.file.read(size)
 
+    @override
     def write(self, content: bytes | str) -> int:  # type: ignore[override]
         """Buffer written data in memory; it is flushed to S3 when the file is closed."""
         if "w" not in self.mode:
@@ -83,6 +87,7 @@ class S3File(File):
         self._is_dirty = True
         return self.file.write(content)  # type: ignore[arg-type]
 
+    @override
     def close(self) -> None:
         """Flush pending writes back to S3 and release the buffer."""
         if self._raw is None:
