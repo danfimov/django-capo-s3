@@ -4,8 +4,18 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import cached_property
 from http import HTTPStatus
+from typing import cast
 
-from capo_s3 import CredentialsProvider, ProfileCredentialsProvider, S3Client
+from capo_s3 import (
+    AssumeRoleCredentialsProvider,
+    CachedProvider,
+    ChainedProvider,
+    CredentialsProvider,
+    ProfileCredentialsProvider,
+    S3Client,
+    SsoCredentialsProvider,
+    WebIdentityCredentialsProvider,
+)
 from capo_s3.errors import NoSuchKey, NotFound, UnknownServiceError
 from capo_s3.types.head_object_output import HeadObjectOutput
 from django.conf import settings
@@ -15,7 +25,7 @@ from django.core.files.storage import Storage
 from django.utils import timezone
 from django.utils.deconstruct import deconstructible
 from typing_extensions import Unpack
-from zapros import BaseHandler, StdNetworkHandler, SyncTransport
+from zapros import BaseHandler, Client, StdNetworkHandler, SyncTransport
 
 from django_capo_s3.cloudfront import CloudFrontSigner
 from django_capo_s3.core import (
@@ -66,11 +76,28 @@ class S3Storage(Storage):
         )
 
     def _credentials_provider(self) -> CredentialsProvider | None:
-        """Resolve a named AWS profile, unless explicit credentials were given or nothing was configured."""
+        """Build the provider for a named AWS profile, or None so capo uses its default resolution chain.
+
+        For a named profile we mirror the relevant slice of capo's default chain (assume-role, web-identity,
+        SSO, then static keys) bound to that profile, wrapped in CachedProvider. That way a profile backed by
+        role_arn / web_identity_token_file / SSO resolves and auto-refreshes on expiry — a bare
+        ProfileCredentialsProvider only reads static keys and would fail outright on those profiles.
+        """
         if self.options.get("credentials") is not None:
             return None
         profile = self.options.get("session_profile")
-        return ProfileCredentialsProvider(profile=profile) if profile else None
+        if not profile:
+            return None
+        client = Client(self._http_handler())
+        chain = CachedProvider(
+            ChainedProvider(
+                AssumeRoleCredentialsProvider(client, profile),
+                WebIdentityCredentialsProvider(client, profile),
+                SsoCredentialsProvider(client, profile),
+                ProfileCredentialsProvider(profile=profile),
+            )
+        )
+        return cast("CredentialsProvider", chain)  # capo's public credentials_provider param is typed narrower
 
     def _http_handler(self) -> BaseHandler | None:
         """Build a network handler only when TLS, timeouts, the pool size, or a proxy are customized."""
