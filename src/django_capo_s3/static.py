@@ -2,12 +2,12 @@ import contextlib
 import gzip
 import hashlib
 from collections.abc import Generator, Iterator
-from typing import Any
+from typing import Any, Unpack
 
 from django.contrib.staticfiles.storage import ManifestFilesMixin
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
-from typing_extensions import Unpack, override
+from typing_extensions import override
 
 from django_capo_s3.core import S3StorageOptions, guess_content_type
 from django_capo_s3.storage import S3Storage

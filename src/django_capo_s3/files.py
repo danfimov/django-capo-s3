@@ -12,10 +12,9 @@ if TYPE_CHECKING:
 class S3File(File):
     """A lazy, buffered handle to a single S3 object.
 
-    On first read the object is streamed into a buffer, and in write mode the buffer is flushed back to S3
-    when the file is closed. A binary handle spills to disk once it grows past the storage's max_memory_size;
-    a text handle (any mode without "b") decodes to and from UTF-8 through a TextIOWrapper and stays in
-    memory — text assets are small, and TextIOWrapper can't wrap a SpooledTemporaryFile before Python 3.11.
+    On first read the object is streamed into a buffer that spills to disk once it grows past the storage's
+    max_memory_size, and in write mode the buffer is flushed back to S3 when the file is closed. A text handle
+    (any mode without "b") decodes to and from UTF-8 through a TextIOWrapper over that same buffer.
     """
 
     def __init__(self, name: str, mode: str, storage: "S3Storage") -> None:
@@ -24,35 +23,27 @@ class S3File(File):
         self.mode = mode
         self._name = name
         self._storage = storage
-        self._raw: SpooledTemporaryFile[bytes] | io.BytesIO | None = None
+        self._raw: SpooledTemporaryFile[bytes] | None = None
         self._text: io.TextIOWrapper | None = None
         self._is_dirty = False
 
     @property
-    def raw(self) -> "SpooledTemporaryFile[bytes] | io.BytesIO":
-        """The binary buffer, populated from S3 on first access in read mode.
-
-        A binary handle spills to disk past max_memory_size; a text handle stays in an in-memory BytesIO so a
-        TextIOWrapper can wrap it (SpooledTemporaryFile only gained the io protocol in Python 3.11).
-        """
+    def raw(self) -> SpooledTemporaryFile[bytes]:
+        """The binary buffer, populated from S3 on first access in read mode; spills to disk past max_memory_size."""
         if self._raw is None:
-            if "b" in self.mode:
-                # Kept open for the lifetime of the file; released in close().
-                raw: SpooledTemporaryFile[bytes] | io.BytesIO = SpooledTemporaryFile(  # noqa: SIM115
-                    max_size=self._storage.options["max_memory_size"],
-                    prefix="django-capo-s3.",
-                )
-            else:
-                raw = io.BytesIO()
+            buffer: SpooledTemporaryFile[bytes] = SpooledTemporaryFile(  # noqa: SIM115
+                max_size=self._storage.options["max_memory_size"],
+                prefix="django-capo-s3.",
+            )
             if "r" in self.mode:
-                raw.write(self._storage.read_bytes(self._name))
-                raw.seek(0)
-            self._raw = raw
+                buffer.write(self._storage.read_bytes(self._name))
+                buffer.seek(0)
+            self._raw = buffer
         return self._raw
 
     @property
     @override
-    def file(self) -> "SpooledTemporaryFile[bytes] | io.BytesIO | io.TextIOWrapper":  # type: ignore[override, mutable-override]
+    def file(self) -> SpooledTemporaryFile[bytes] | io.TextIOWrapper:  # type: ignore[override, mutable-override]
         """The stream callers read and write through: a text wrapper in text mode, else the binary buffer.
 
         Both file operations (read, write, seek, ...) and iteration are forwarded here by FileProxyMixin, so
@@ -62,7 +53,7 @@ class S3File(File):
             return self.raw
         if self._text is None:
             self._text = io.TextIOWrapper(
-                self.raw,  # a text handle always backs `raw` with a BytesIO
+                buffer=self.raw,
                 encoding="utf-8",
                 newline="",  # keeps byte-for-byte round trips: no \r\n <-> \n translation on read or write.
             )

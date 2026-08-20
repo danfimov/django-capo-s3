@@ -1,11 +1,10 @@
 import mimetypes
 import ssl
-from typing import Final
+from typing import Final, TypedDict
 from urllib.parse import quote
 
 from capo_s3 import Credentials
 from capo_s3.types.object_canned_acl import ObjectCannedACL
-from typing_extensions import TypedDict
 
 
 class S3StorageOptions(TypedDict, total=False):
