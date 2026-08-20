@@ -17,9 +17,9 @@ class CloudFrontSigner:
 
     def __init__(self, key_id: str, private_key_pem: str) -> None:
         """Load the private key and remember the key-pair id used when signing."""
-        self._key_id = key_id
+        self._key_id: str = key_id
         loaded = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
-        self._key = cast("RSAPrivateKey", loaded)
+        self._key: RSAPrivateKey = cast("RSAPrivateKey", loaded)
 
     def signed_url(self, url: str, *, expires_at: int) -> str:
         """Return url signed to stay valid until expires_at (an epoch time in seconds)."""

@@ -71,7 +71,7 @@ def test_delete_objects_clears_many_keys_under_a_prefix(
     s3_client: S3Client,
 ):
     storage = storage_factory(location="many")
-    names = [f"obj-{i}.txt" for i in range(40)]  # more than the delete concurrency, to exercise batching
+    names = [f"obj-{i}.txt" for i in range(40)]  # many keys deleted in one bulk request
     with ThreadPoolExecutor(max_workers=16) as pool:
         list(pool.map(lambda n: s3_client.put_object(bucket, f"many/{n}", body=b"x", content_length=1), names))
     storage.delete_objects(names)

@@ -1,6 +1,7 @@
 import mimetypes
 import ssl
-from typing import Final, TypedDict
+from collections.abc import Iterator, Sequence
+from typing import Final, TypedDict, TypeVar
 from urllib.parse import quote
 
 from capo_s3 import Credentials
@@ -115,6 +116,15 @@ def guess_content_type(name: str) -> str | None:
     """Guess a file's MIME type from its extension, or None when unknown."""
     content_type, _ = mimetypes.guess_type(name)
     return content_type
+
+
+T = TypeVar("T")
+
+
+def batched(sequence: Sequence[T], size: int) -> Iterator[Sequence[T]]:
+    """Yield successive slices of at most size items. Will be replaced with itertools.batched in Python 3.12."""
+    for start in range(0, len(sequence), size):
+        yield sequence[start : start + size]
 
 
 def build_public_url(options: S3StorageOptions, key: str) -> str:

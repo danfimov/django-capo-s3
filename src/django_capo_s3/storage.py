@@ -1,10 +1,8 @@
 import gzip
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import cached_property
-from http import HTTPStatus
-from typing import Unpack, cast
+from typing import TYPE_CHECKING, Unpack, cast
 
 from capo_s3 import (
     AssumeRoleCredentialsProvider,
@@ -16,7 +14,7 @@ from capo_s3 import (
     SsoCredentialsProvider,
     WebIdentityCredentialsProvider,
 )
-from capo_s3.errors import NoSuchKey, NotFound, UnknownServiceError
+from capo_s3.errors import NoSuchKey, NotFound
 from capo_s3.types.head_object_output import HeadObjectOutput
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -31,6 +29,7 @@ from django_capo_s3.cloudfront import CloudFrontSigner
 from django_capo_s3.core import (
     DEFAULTS,
     S3StorageOptions,
+    batched,
     build_public_url,
     guess_content_type,
     normalize_key,
@@ -39,6 +38,9 @@ from django_capo_s3.core import (
 from django_capo_s3.files import S3File
 from django_capo_s3.proxy import ProxyHandler
 from django_capo_s3.transfer import ObjectMeta, S3Uploader
+
+if TYPE_CHECKING:
+    from capo_s3.types.object_identifier import ObjectIdentifier
 
 
 @deconstructible
@@ -200,15 +202,16 @@ class S3Storage(Storage):
         except (NoSuchKey, NotFound):
             return
 
-    def delete_objects(self, names: list[str], concurrency: int = 16) -> None:
-        """Delete many objects concurrently."""
-        if not names:
-            return
-
-        # Since capo-s3 have broken delete_objects for now we use threads
-        # Issue:https://github.com/kap-sh/capo/issues/34
-        with ThreadPoolExecutor(max_workers=min(concurrency, len(names))) as pool:
-            list(pool.map(self.delete, names))
+    def delete_objects(self, names: list[str]) -> None:
+        """Delete many objects with one bulk request per batch; missing keys are ignored."""
+        for batch in batched(names, 1000):  # S3 DeleteObjects caps each request at 1000 keys
+            objects: list[ObjectIdentifier] = [{"key": self.key(name)} for name in batch]
+            result = self.client.delete_objects(self.bucket, {"objects": objects})
+            errors = result.get("errors")
+            if errors:
+                failed = ", ".join(f"{error.get('key')} ({error.get('code')})" for error in errors)
+                msg = f"Failed to delete objects: {failed}"
+                raise OSError(msg)
 
     @override
     def exists(self, name: str) -> bool:
@@ -325,20 +328,13 @@ class S3Storage(Storage):
     def _head(self, name: str) -> HeadObjectOutput:
         """Return an object's metadata, or raise FileNotFoundError when it is missing.
 
-        A single HEAD needs only s3:GetObject, unlike a listing's s3:ListBucket. A missing key surfaces as
-        NotFound on real S3, but MinIO answers a 404 HEAD with an empty body, which capo maps to
-        UnknownServiceError — so treat a 404 either way as absent and re-raise anything else.
+        A single HEAD needs only s3:GetObject, unlike a listing's s3:ListBucket.
         """
         try:
             return self.client.head_object(self.bucket, self.key(name))
         except NotFound as exc:
             msg = f"File does not exist: {name}"
             raise FileNotFoundError(msg) from exc
-        except UnknownServiceError as exc:
-            if getattr(getattr(exc, "response", None), "status", None) == HTTPStatus.NOT_FOUND:
-                msg = f"File does not exist: {name}"
-                raise FileNotFoundError(msg) from exc
-            raise
 
     def _should_gzip(self, content_type: str | None) -> bool:
         return bool(

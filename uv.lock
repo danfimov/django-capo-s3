@@ -82,14 +82,14 @@ wheels = [
 
 [[package]]
 name = "capo-s3"
-version = "0.12.0"
+version = "0.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "zapros" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/d8/e30507220b92fa8665acabba86dff9724133988db849cde4b44bc5f3ceb4/capo_s3-0.12.0.tar.gz", hash = "sha256:b8c5ca0c3eff93c8e54f510b05bed4f0abbfa382278949b44aa0a49fb424c10f", size = 604195, upload-time = "2026-08-19T17:34:49.14Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/03/5907e097a2e3932fd50e62e7ce9e1c64d19350f56f5133193eba7e2b76fa/capo_s3-0.13.0.tar.gz", hash = "sha256:a7265e1cef9525542ba9056e1cce689d244d6e4bc9eb318c68e6157a25fe08e2", size = 608557, upload-time = "2026-08-20T16:39:35.962Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/2e/2192bad625f06d922645dc589a1a66fa1664bfb521e4eaef539e3c43493a/capo_s3-0.12.0-py3-none-any.whl", hash = "sha256:cc08c2436a9a67b9147041cfe5126ce799761e66cd16ebda69d09056bc52f519", size = 1164659, upload-time = "2026-08-19T17:34:47.505Z" },
+    { url = "https://files.pythonhosted.org/packages/93/4d/3e99c14d096329a6cfc82894ed94b0ec0785789a52332fad7948663ba04f/capo_s3-0.13.0-py3-none-any.whl", hash = "sha256:588d3925aba460f0eba2449c12dd877b2e6d7ce0c3533b6c5c09f6cc5264567d", size = 1170386, upload-time = "2026-08-20T16:39:34.765Z" },
 ]
 
 [[package]]
@@ -330,7 +330,7 @@ types = [
 
 [package.metadata]
 requires-dist = [
-    { name = "capo-s3", specifier = "==0.12.0" },
+    { name = "capo-s3", specifier = "==0.13.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "django", specifier = ">=5.2" },
     { name = "typing-extensions", specifier = ">=4.4" },
