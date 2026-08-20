@@ -5,25 +5,35 @@ import pytest
 from django_capo_s3 import core
 
 
-def test_normalize_key_joins_location():
-    assert core.normalize_key("media", "a/b.txt") == "media/a/b.txt"
-
-
-def test_normalize_key_strips_leading_slash_and_backslashes():
-    assert core.normalize_key("", "/a\\b.txt") == "a/b.txt"
-
-
-def test_normalize_key_without_location():
-    assert core.normalize_key("", "a.txt") == "a.txt"
-
-
-def test_normalize_key_collapses_redundant_segments():
-    assert core.normalize_key("media/", "./sub//file.txt") == "media/sub/file.txt"
+@pytest.mark.parametrize(
+    ("location", "name", "expected"),
+    [
+        ("media", "a/b.txt", "media/a/b.txt"),
+        ("", "/a\\b.txt", "a/b.txt"),
+        ("", "a.txt", "a.txt"),
+        ("media/", "./sub//file.txt", "media/sub/file.txt"),
+    ],
+    ids=["joins_location", "strips_leading_slash_and_backslashes", "without_location", "collapses_redundant_segments"],
+)
+def test_normalize_key(location: str, name: str, expected: str):
+    assert core.normalize_key(location, name) == expected
 
 
 def test_normalize_key_rejects_traversal():
     with pytest.raises(ValueError, match="traversal"):
         core.normalize_key("media", "../etc/passwd")
+
+
+@pytest.mark.parametrize(
+    ("sequence", "size", "expected"),
+    [
+        ([0, 1, 2, 3, 4, 5, 6], 3, [[0, 1, 2], [3, 4, 5], [6]]),
+        ([1, 2, 3, 4], 2, [[1, 2], [3, 4]]),
+        ([], 3, []),
+    ],
+)
+def test_batched(sequence: list[int], size: int, expected: list[list[int]]):
+    assert list(core.batched(sequence, size)) == expected
 
 
 def test_guess_content_type_known():

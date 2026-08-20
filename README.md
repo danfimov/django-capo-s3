@@ -105,7 +105,7 @@ For a public bucket, set `"querystring_auth": False` in `OPTIONS` to get plain, 
 
 ### Bulk delete
 
-`delete_objects()` removes many objects in one call, deleting them concurrently. Missing keys are ignored, just
+`delete_objects()` removes many objects in a single bulk request (per 1000 keys). Missing keys are ignored, just
 like `delete()`.
 
 ```python
