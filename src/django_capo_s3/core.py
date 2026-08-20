@@ -130,17 +130,18 @@ def batched(sequence: Sequence[T], size: int) -> Iterator[Sequence[T]]:
 def build_public_url(options: S3StorageOptions, key: str) -> str:
     """Build an unsigned, publicly addressable URL for an object.
 
-    Prefers a custom domain, then a custom endpoint (path- or virtual-host style),
-    and otherwise falls back to the AWS regional host.
+    Prefers a custom domain (path- or virtual-host style, per force_path_style), then a custom endpoint (likewise), and
+    otherwise falls back to the AWS regional host.
     """
     encoded = quote(key)
     protocol = options.get("url_protocol", "https")
+    bucket = options.get("bucket")
 
     custom_domain = options.get("custom_domain")
     if custom_domain:
-        return f"{protocol}://{custom_domain.rstrip('/')}/{encoded}"
+        base = f"{protocol}://{custom_domain.rstrip('/')}"
+        return f"{base}/{bucket}/{encoded}" if options.get("force_path_style") else f"{base}/{encoded}"
 
-    bucket = options["bucket"]
     endpoint = options.get("endpoint")
     if endpoint:
         base = endpoint.rstrip("/")
