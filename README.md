@@ -112,6 +112,26 @@ like `delete()`.
 storage.delete_objects(["reports/jan.csv", "reports/feb.csv", "reports/mar.csv"])
 ```
 
+### Multiple regions
+
+A storage is bound to one region, but `for_region()` returns a clone bound to another — cached per region, so
+repeated calls reuse the same client and connection pool. Handy for routing objects to a region at runtime,
+for example from a model's `FileField`.
+
+```python
+storage = storages["default"]
+storage.for_region("sa-east-1").save("br/report.csv", content)   # store in São Paulo
+storage.for_region("ap-southeast-2").save("au/report.csv", content)  # store in Sydney
+
+class Report(models.Model):
+    region = models.CharField(max_length=20)
+    csv = models.FileField(upload_to="reports/")
+
+    def save(self, *args, **kwargs):
+        self.csv.storage = storages["default"].for_region(self.region)
+        super().save(*args, **kwargs)
+```
+
 ### Static files with cache-busting
 
 Point `STORAGES["staticfiles"]` at `S3ManifestStaticStorage`. `collectstatic` then stores each file under a
