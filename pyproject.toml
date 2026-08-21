@@ -41,6 +41,10 @@ dev = [
     {include-group = "lint"},
     {include-group = "types"},
     {include-group = "test"},
+    {include-group = "docs"},
+]
+docs = [
+    "zensical>=0.0.56",
 ]
 lint = [
     "ruff>=0.16.3",
