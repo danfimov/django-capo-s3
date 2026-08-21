@@ -238,7 +238,7 @@ class S3Storage(Storage):
     def exists(self, name: str) -> bool:
         """Report whether an object with this name is already stored."""
         try:
-            self._head(name)
+            _ = self._head(name)
         except FileNotFoundError:
             return False
         return True
