@@ -1,8 +1,8 @@
 name: Release docs
 on:
-  pull_request:
-    types: [ closed ]
+  push:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,7 +11,6 @@ permissions:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true) }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
