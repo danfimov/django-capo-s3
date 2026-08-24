@@ -1,8 +1,9 @@
 import gzip
+import io
 import time
 from datetime import datetime
 from functools import cached_property
-from typing import TYPE_CHECKING, Self, Unpack, cast
+from typing import IO, TYPE_CHECKING, Self, Unpack, cast
 from urllib.parse import urlencode
 
 from capo_s3 import (
@@ -161,15 +162,19 @@ class S3Storage(Storage):
 
     def read_bytes(self, name: str) -> bytes:
         """Download an object in full and return its bytes."""
-        buffer = bytearray()
+        buffer = io.BytesIO()
+        self.download_into(name, buffer)
+        return buffer.getvalue()
+
+    def download_into(self, name: str, target: IO[bytes]) -> None:
+        """Stream an object into a writable binary target, one chunk at a time."""
         try:
             with self.client.get_object(self.bucket, self.key(name)) as output:
                 for chunk in output["body"]:
-                    buffer.extend(chunk)
+                    target.write(chunk)
         except NoSuchKey as exc:
             msg = f"File does not exist: {name}"
             raise FileNotFoundError(msg) from exc
-        return bytes(buffer)
 
     def write_bytes(self, name: str, data: bytes) -> None:
         """Upload bytes to a file's exact key, without collision-avoidance renaming."""

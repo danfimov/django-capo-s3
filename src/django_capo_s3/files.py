@@ -36,7 +36,7 @@ class S3File(File):
                 prefix="django-capo-s3.",
             )
             if "r" in self.mode:
-                buffer.write(self._storage.read_bytes(self._name))
+                self._storage.download_into(self._name, buffer)
                 buffer.seek(0)
             self._raw = buffer
         return self._raw
