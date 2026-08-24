@@ -141,9 +141,6 @@ def test_max_memory_size_option_round_trips(storage_factory: Callable[..., S3Sto
 def test_reading_an_object_streams_it_into_the_spool_instead_of_buffering_it_whole(
     storage_factory: Callable[..., S3Storage],
 ):
-    # max_memory_size only caps memory if the body streams into the spool; buffering the object first made
-    # peak usage track object size no matter how low the threshold was set. The limit leaves room for the one
-    # copy this test itself holds — the payload — and nothing like a second copy of the object on top.
     storage = storage_factory(max_memory_size=64 * 1024)
     payload = b"x" * (8 * 1024 * 1024)
     storage.save("stream.bin", ContentFile(payload))
