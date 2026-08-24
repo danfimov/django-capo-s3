@@ -200,14 +200,31 @@ def test_non_ascii_text_upload_is_not_truncated(storage: S3Storage, bucket: str,
         assert handle.read() == text.encode()
 
 
-def test_for_region_clones_with_overridden_region_and_caches():
+@pytest.mark.parametrize(
+    ("clone_for", "option", "current", "other"),
+    [
+        pytest.param("for_region", "region", "us-east-1", "eu-central-1", id="region"),
+        pytest.param("for_bucket", "bucket", "b", "other-bucket", id="bucket"),
+    ],
+)
+def test_clone_overrides_one_option_and_is_cached(clone_for: str, option: str, current: str, other: str):
     base = S3Storage(bucket="b", region="us-east-1", location="media")
-    clone = base.for_region("eu-central-1")
+    clone = getattr(base, clone_for)(other)
     assert clone is not base
-    assert clone.options == IsPartialDict(region="eu-central-1", location="media", bucket="b")
-    assert base.options["region"] == "us-east-1"  # base is left untouched
-    assert base.for_region("eu-central-1") is clone  # same region -> cached instance
-    assert base.for_region("us-east-1") is base  # the current region -> self
+    assert clone.options == IsPartialDict({option: other, "location": "media"})
+    assert base.options[option] == current  # base is left untouched
+    assert getattr(base, clone_for)(other) is clone  # same value -> cached instance
+    assert getattr(base, clone_for)(current) is base  # the current value -> self
+
+
+def test_region_and_bucket_clones_do_not_collide():
+    base = S3Storage(bucket="b", region="us-east-1")
+    assert base.for_bucket("shared") is not base.for_region("shared")
+
+
+def test_for_bucket_targets_the_new_bucket():
+    base = S3Storage(bucket="b", region="us-east-1", querystring_auth=False)
+    assert base.for_bucket("reports").url("a.txt") == "https://reports.s3.us-east-1.amazonaws.com/a.txt"
 
 
 def test_for_region_public_url_targets_the_new_region():
