@@ -1,12 +1,16 @@
+import mimetypes
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from capo_s3 import S3Client
 from dirty_equals import IsNow, IsPartialDict
-from django.core.files.base import ContentFile
+from django.core.files.base import ContentFile, File
 from django.core.files.storage import storages
+from django.core.files.uploadedfile import SimpleUploadedFile
+from typing_extensions import override
 
+from django_capo_s3.core import S3StorageOptions
 from django_capo_s3.storage import S3Storage
 
 
@@ -245,3 +249,54 @@ def test_storages_registration_roundtrip(s3_client: S3Client):
         storage.delete(name)
     finally:
         s3_client.delete_bucket(bucket_name)
+
+
+class _ExtensionStorage(S3Storage):
+    """Derives the extension from what the content reports, the way an image upload would."""
+
+    @override
+    def object_name(self, name: str, content: File) -> str:
+        if "." in name.rsplit("/", 1)[-1]:
+            return name
+        extension = mimetypes.guess_extension(getattr(content, "content_type", "") or "")
+        return f"{name}{extension}" if extension else name
+
+
+def test_object_name_leaves_the_name_alone_by_default(storage: S3Storage):
+    content = SimpleUploadedFile("logo", b"x", content_type="image/png")
+    assert storage.object_name("logo", content) == "logo"
+
+
+def test_object_name_renames_both_the_stored_name_and_the_key(
+    bucket: str,
+    s3_client: S3Client,
+    storage_options: S3StorageOptions,
+):
+    storage = _ExtensionStorage(**storage_options)
+    upload = SimpleUploadedFile("logo", b"\x89PNG\r\n", content_type="image/png")
+
+    name = storage.save("logos/acme", upload)
+
+    # The name Django would record on the model field and the key in the bucket must not drift apart.
+    assert name == "logos/acme.png"
+    assert s3_client.head_object(bucket, "logos/acme.png")["content_length"] == 6
+    assert storage.exists(name)
+
+
+def test_object_name_can_read_the_content_without_rewinding(
+    bucket: str,
+    s3_client: S3Client,
+    storage_options: S3StorageOptions,
+):
+    class _SniffingStorage(S3Storage):
+        @override
+        def object_name(self, name: str, content: File) -> str:
+            return f"{name}.png" if content.read(4) == b"\x89PNG" else f"{name}.bin"
+
+    storage = _SniffingStorage(**storage_options)
+    payload = b"\x89PNG\r\nrest"
+    name = storage.save("sniffed", ContentFile(payload))
+
+    assert name == "sniffed.png"
+    with s3_client.get_object(bucket, "sniffed.png") as out:  # the body is still uploaded whole
+        assert b"".join(out["body"]) == payload

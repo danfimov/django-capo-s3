@@ -56,15 +56,21 @@ def bucket(s3_client: S3Client) -> Iterator[str]:
 
 
 @pytest.fixture
-def storage_factory(bucket: str) -> Callable[..., S3Storage]:
+def storage_options(bucket: str) -> S3StorageOptions:
+    """The options pointing a storage at the local MinIO, for building storage subclasses directly."""
+    return {
+        "bucket": bucket,
+        "endpoint": ENDPOINT,
+        "region": REGION,
+        "force_path_style": True,
+        "credentials": CREDS,
+    }
+
+
+@pytest.fixture
+def storage_factory(storage_options: S3StorageOptions) -> Callable[..., S3Storage]:
     def _make(**overrides: Unpack[S3StorageOptions]) -> S3Storage:
-        options: S3StorageOptions = {
-            "bucket": bucket,
-            "endpoint": ENDPOINT,
-            "region": REGION,
-            "force_path_style": True,
-            "credentials": CREDS,
-        }
+        options: S3StorageOptions = {**storage_options}
         options.update(overrides)
         return S3Storage(**options)
 

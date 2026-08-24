@@ -85,6 +85,31 @@ last three.
 `max_connections_per_host`, `retry_max_attempts`, `http_client_builder` and `http_handler` are set through
 `OPTIONS` only.
 
+## Deriving the name from the content
+
+Override `object_name(name, content)` to decide the stored name from the content itself — normalizing an
+extension, say, or using a content-addressed name. Whatever it returns becomes both the object key and the name
+Django records on the model field, so the two can't drift apart.
+
+```python
+import mimetypes
+
+from django_capo_s3 import S3Storage
+
+
+class ImageStorage(S3Storage):
+    def object_name(self, name, content):
+        if "." in name.rsplit("/", 1)[-1]:
+            return name
+        extension = mimetypes.guess_extension(getattr(content, "content_type", "") or "")
+        return f"{name}{extension}" if extension else name
+```
+
+The content is rewound before and after the call, so an override may read it freely to sniff a type.
+
+Django resolves name collisions *before* this runs, so a name produced here isn't checked against the bucket:
+with `file_overwrite` off, returning the name of an existing object still overwrites it.
+
 ## One default to check when migrating
 
 **`max_memory_size` defaults to 10 MB**, where django-storages uses `0`. An opened file is held in memory up to
