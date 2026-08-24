@@ -66,8 +66,11 @@ Before building this, we read the open S3 issues in django-storages. Several of 
   produces path-style public URLs (`https://public-host/bucket/key`) even when the client talks to an internal
   endpoint.
 
-Better defaults also close a class of confusion outright: `file_overwrite` defaults to `False`, `listdir`
-uses `list_objects_v2`, and a missing `bucket` raises a clear error instead of a cryptic one.
+Better defaults also close a class of confusion outright: `listdir` uses `list_objects_v2`, and a missing
+`bucket` raises a clear error instead of a cryptic one.
+
+Migrating? The `AWS_*` settings you already have keep working — see
+[Configuration](tutorial/configuration.md) for the full mapping and the one default that differs.
 
 > **Note.** Issue numbers refer to django-storages at the time of writing; some may since have been addressed
 > upstream. The point isn't that django-storages is broken — it's a great, general library — only that a

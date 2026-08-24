@@ -30,8 +30,7 @@ def test_save_applies_location_prefix(
     assert s3_client.head_object(bucket, "media/photos/cat.txt")["content_length"] == 1
 
 
-def test_file_overwrite_reuses_name(storage_factory: Callable[..., S3Storage]):
-    storage = storage_factory(file_overwrite=True)
+def test_saving_the_same_name_overwrites_by_default(storage: S3Storage):
     first = storage.save("same.txt", ContentFile(b"one"))
     second = storage.save("same.txt", ContentFile(b"two"))
     assert first == second == "same.txt"
@@ -39,7 +38,8 @@ def test_file_overwrite_reuses_name(storage_factory: Callable[..., S3Storage]):
         assert handle.read() == b"two"
 
 
-def test_default_naming_avoids_collision(storage: S3Storage):
+def test_collision_suffix_when_overwriting_is_disabled(storage_factory: Callable[..., S3Storage]):
+    storage = storage_factory(file_overwrite=False)
     first = storage.save("same.txt", ContentFile(b"one"))
     second = storage.save("same.txt", ContentFile(b"two"))
     assert first == "same.txt"

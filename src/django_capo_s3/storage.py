@@ -37,6 +37,7 @@ from django_capo_s3.core import (
     configure_builder,
     guess_content_type,
     normalize_key,
+    options_from_settings,
     ssl_context_for,
 )
 from django_capo_s3.files import S3File
@@ -59,7 +60,7 @@ class S3Storage(Storage):
 
     def __init__(self, **options: Unpack[S3StorageOptions]) -> None:
         """Fill in the defaults and require a bucket to be configured."""
-        merged: S3StorageOptions = {**DEFAULTS, **options}
+        merged: S3StorageOptions = {**DEFAULTS, **options_from_settings(), **options}
         if not merged.get("bucket"):
             msg = "S3Storage requires a non-empty 'bucket' option."
             raise ImproperlyConfigured(msg)

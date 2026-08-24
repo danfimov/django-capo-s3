@@ -10,6 +10,7 @@ nav = [
   { "Overview" = "index.md" },
   { "Comparison with django-storages" = "django_storages_comparison.md" },
   { "Tutorial" = [
+    "tutorial/configuration.md",
     "tutorial/static_files.md",
     "tutorial/download_urls.md",
     "tutorial/different_providers.md",
