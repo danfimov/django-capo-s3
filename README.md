@@ -214,6 +214,15 @@ otherwise be stored with no `Content-Type` at all.
 }
 ```
 
+To store bytes under a type of your choosing, use `TypedContentFile` — Django's plain `ContentFile` carries no
+content type, so there is otherwise nothing for the second step above to read.
+
+```python
+from django_capo_s3 import TypedContentFile
+
+storage.save(f"statements/{statement.id}", TypedContentFile(pdf_bytes, content_type="application/pdf"))
+```
+
 ### Encryption, storage class, and other object metadata
 
 Whatever `object_parameters` contains is passed straight to each upload — e.g. SSE-KMS plus a storage class

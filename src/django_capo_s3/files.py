@@ -2,11 +2,26 @@ import io
 from tempfile import SpooledTemporaryFile
 from typing import TYPE_CHECKING
 
-from django.core.files.base import File
+from django.core.files.base import ContentFile, File
 from typing_extensions import override
 
 if TYPE_CHECKING:
     from django_capo_s3.storage import S3Storage
+
+
+class TypedContentFile(ContentFile):
+    """In-memory content that knows its own content type.
+
+    The storage reads content_type off the file it is given when it works out an object's Content-Type, but
+    Django only puts that attribute on uploaded files — a plain ContentFile has none. Use this to store bytes
+    under a known type without borrowing SimpleUploadedFile and its uploaded-file semantics, which matters
+    most for keys with no extension to guess from.
+    """
+
+    def __init__(self, content: bytes | str, name: str | None = None, *, content_type: str | None = None) -> None:
+        """Wrap content as a file, tagging it with the content type to store it under."""
+        super().__init__(content, name)
+        self.content_type = content_type
 
 
 class S3File(File):

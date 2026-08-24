@@ -5,6 +5,7 @@ from capo_s3 import S3Client
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from django_capo_s3.files import TypedContentFile
 from django_capo_s3.storage import S3Storage
 
 
@@ -226,3 +227,37 @@ def test_an_in_memory_upload_is_still_split_into_parts(
 
     with storage.open("memory/big.bin") as handle:
         assert handle.read() == payload
+
+
+@pytest.mark.parametrize(
+    ("name", "declared", "expected"),
+    [
+        pytest.param("statements/4d1a", "application/pdf", "application/pdf", id="declared-on-an-extensionless-key"),
+        pytest.param("report.txt", "application/pdf", "application/pdf", id="declared-beats-the-extension"),
+        pytest.param("notes.txt", None, "text/plain", id="undeclared-falls-back-to-the-extension"),
+        pytest.param("statements/9f22", None, "application/octet-stream", id="undeclared-with-nothing-to-guess"),
+    ],
+)
+def test_typed_content_file_carries_its_type_through_a_save(
+    storage: S3Storage,
+    s3_client: S3Client,
+    name: str,
+    declared: str | None,
+    expected: str,
+):
+    storage.save(name, TypedContentFile(b"%PDF-1.4", content_type=declared))
+    with s3_client.get_object(storage.bucket, name) as out:
+        assert out.get("content_type") == expected
+
+
+def test_typed_content_file_is_still_a_content_file():
+    content = TypedContentFile(b"hello", "greeting.txt", content_type="text/plain")
+    assert content.name == "greeting.txt"
+    assert content.size == 5
+    assert content.read() == b"hello"
+
+
+def test_typed_content_file_needs_no_type():
+    # Plain ContentFile has no such attribute at all, which is the gap this closes.
+    assert TypedContentFile(b"x").content_type is None
+    assert not hasattr(ContentFile(b"x"), "content_type")

@@ -85,6 +85,18 @@ last three.
 `max_connections_per_host`, `retry_max_attempts`, `http_client_builder` and `http_handler` are set through
 `OPTIONS` only.
 
+## Storing bytes under a known content type
+
+The storage reads `content_type` off the file it is handed, but Django only puts that attribute on uploaded
+files — a plain `ContentFile` has none. `TypedContentFile` closes that gap, which matters most for keys with no
+extension to guess from:
+
+```python
+from django_capo_s3 import TypedContentFile
+
+storage.save(f"statements/{statement.id}", TypedContentFile(pdf_bytes, content_type="application/pdf"))
+```
+
 ## Deriving the name from the content
 
 Override `object_name(name, content)` to decide the stored name from the content itself — normalizing an
