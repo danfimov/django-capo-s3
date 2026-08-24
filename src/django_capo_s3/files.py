@@ -86,8 +86,12 @@ class S3File(File):
         if self._is_dirty:
             if self._text is not None:
                 self._text.flush()
+            # Measure by seeking rather than trusting File.size: on a rolled-over spool that reads the temp
+            # file's length off disk, which can lag behind buffered writes.
+            self._raw.seek(0, io.SEEK_END)
+            size = self._raw.tell()
             self._raw.seek(0)
-            self._storage.write_bytes(self._name, self._raw.read())
+            self._storage.write_file(self._name, File(self._raw), size)
             self._is_dirty = False
         if self._text is not None:
             self._text.detach()  # Detach so closing the wrapper doesn't also close the buffer we close ourselves below.
