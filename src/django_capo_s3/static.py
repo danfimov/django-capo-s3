@@ -22,7 +22,7 @@ class S3StaticStorage(S3Storage):
     """
 
     def __init__(self, **options: Unpack[S3StorageOptions]) -> None:
-        """Default to overwriting files and serving unsigned URLs, then hand off to the base storage."""
+        """Pin overwriting and unsigned URLs, then hand off to the base storage."""
         _ = options.setdefault("file_overwrite", True)
         _ = options.setdefault("querystring_auth", False)
         super().__init__(**options)

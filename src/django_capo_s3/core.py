@@ -3,11 +3,13 @@ import mimetypes
 import ssl
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta
-from typing import Any, Final, Protocol, TypedDict, TypeVar
+from typing import Any, Final, Protocol, TypedDict, TypeVar, cast
 from urllib.parse import quote
 
 from capo_s3 import Credentials
 from capo_s3.types.object_canned_acl import ObjectCannedACL
+from django.conf import settings
+from typing_extensions import Sentinel
 from zapros import BaseHandler
 
 
@@ -88,7 +90,7 @@ DEFAULTS: Final[S3StorageOptions] = {
     "cloudfront_key": None,
     "cloudfront_key_id": None,
     "verify": True,
-    "file_overwrite": False,
+    "file_overwrite": True,
     "default_acl": None,
     "gzip": False,
     "gzip_content_types": DEFAULT_GZIP_CONTENT_TYPES,
@@ -112,6 +114,75 @@ DEFAULTS: Final[S3StorageOptions] = {
 }
 
 logger = logging.getLogger(__name__)
+
+SETTING_NAMES: Final[tuple[tuple[str, str], ...]] = (
+    ("AWS_STORAGE_BUCKET_NAME", "bucket"),
+    ("AWS_LOCATION", "location"),
+    ("AWS_S3_ENDPOINT_URL", "endpoint"),
+    ("AWS_S3_REGION_NAME", "region"),
+    ("AWS_QUERYSTRING_AUTH", "querystring_auth"),
+    ("AWS_QUERYSTRING_EXPIRE", "url_expire"),
+    ("AWS_S3_CUSTOM_DOMAIN", "custom_domain"),
+    ("AWS_CLOUDFRONT_KEY", "cloudfront_key"),
+    ("AWS_CLOUDFRONT_KEY_ID", "cloudfront_key_id"),
+    ("AWS_S3_FILE_OVERWRITE", "file_overwrite"),
+    ("AWS_DEFAULT_ACL", "default_acl"),
+    ("AWS_IS_GZIPPED", "gzip"),
+    ("GZIP_CONTENT_TYPES", "gzip_content_types"),
+    ("AWS_S3_OBJECT_PARAMETERS", "object_parameters"),
+    ("AWS_S3_MAX_MEMORY_SIZE", "max_memory_size"),
+    ("AWS_S3_SESSION_PROFILE", "session_profile"),
+    ("AWS_S3_PROXIES", "proxies"),
+)
+
+_UNSET: Final = Sentinel("_UNSET")
+
+
+def _first_setting(*names: str) -> object:
+    for name in names:
+        value = getattr(settings, name, None)
+        if value:
+            return value
+    return None
+
+
+def options_from_settings() -> S3StorageOptions:
+    """Collect storage options from the django-storages AWS_* settings.
+
+    Only settings that are actually present are reported, so they layer between the defaults and a storage's
+    own OPTIONS: anything given in OPTIONS still wins. Credentials are assembled from the key settings when
+    both halves are there; otherwise they are left alone so capo resolves them from the environment.
+    """
+    if not settings.configured:  # usable outside a Django project, e.g. from a script
+        return {}
+    found: dict[str, Any] = {}
+    for name, option in SETTING_NAMES:
+        value = getattr(settings, name, _UNSET)
+        if value is not _UNSET:
+            found[option] = value
+
+    protocol = getattr(settings, "AWS_S3_URL_PROTOCOL", None)
+    if isinstance(protocol, str):
+        found["url_protocol"] = protocol.rstrip(":")  # django-storages writes it as "https:"
+
+    style = getattr(settings, "AWS_S3_ADDRESSING_STYLE", None)
+    if isinstance(style, str):
+        found["force_path_style"] = style == "path"
+
+    verify = getattr(settings, "AWS_S3_VERIFY", _UNSET)
+    if verify is not _UNSET and verify is not None:  # None there means "library default", which is ours
+        found["verify"] = verify
+
+    access_key = _first_setting("AWS_S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID")
+    secret_key = _first_setting("AWS_S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY")
+    if isinstance(access_key, str) and isinstance(secret_key, str):
+        credentials = Credentials(access_key=access_key, secret_key=secret_key)
+        token = _first_setting("AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN")
+        if isinstance(token, str):
+            credentials["session_token"] = token
+        found["credentials"] = credentials
+    return cast("S3StorageOptions", found)
+
 
 # Storage option -> the builder method that applies it. Builders name things differently and expose different
 # knobs, so this is applied best-effort: a builder without the method is logged, not an error.

@@ -32,7 +32,9 @@ uv add django-capo-s3   # or: pip install django-capo-s3
 
 ## Configuration
 
-Register the backend in Django's `STORAGES` setting; everything under `OPTIONS` is passed to the backend:
+Register the backend in Django's `STORAGES` setting; everything under `OPTIONS` is passed to the backend.
+Options not given there fall back to the `AWS_*` settings (similar to that reads django-storages), so migrating doesn't
+require moving your configuration in the same change.
 
 ```python
 STORAGES = {

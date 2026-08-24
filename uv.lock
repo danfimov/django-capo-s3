@@ -373,7 +373,7 @@ requires-dist = [
     { name = "capo-s3", specifier = "==0.13.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "django", specifier = ">=5.2" },
-    { name = "typing-extensions", specifier = ">=4.4" },
+    { name = "typing-extensions", specifier = ">=4.14" },
 ]
 
 [package.metadata.requires-dev]
