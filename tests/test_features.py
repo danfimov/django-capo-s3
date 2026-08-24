@@ -148,6 +148,39 @@ def test_reading_an_object_streams_it_into_the_spool_instead_of_buffering_it_who
         assert handle.read(16) == b"x" * 16  # enough to trigger the fetch, too little to materialize the object
 
 
+@pytest.mark.limit_memory("4 MB")
+def test_writing_an_object_streams_out_of_the_spool_instead_of_buffering_it_whole(
+    storage_factory: Callable[..., S3Storage],
+):
+    storage = storage_factory(max_memory_size=64 * 1024)
+    chunk = b"x" * (1024 * 1024)
+    with storage.open("written.bin", "wb") as handle:
+        for _ in range(8):
+            handle.write(chunk)
+    assert storage.size("written.bin") == 8 * len(chunk)
+
+
+def test_writing_a_large_object_assembles_a_multipart_upload_from_the_spool(
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+):
+    part = 5 * 1024 * 1024  # S3's minimum part size
+    storage = storage_factory(multipart_threshold=part, multipart_chunksize=part)
+    # Distinct bytes per write so a wrong part order would corrupt the round-trip.
+    payload = b"1" * part + b"2" * part + b"3" * 2048
+    with storage.open("written-big.bin", "wb") as handle:
+        handle.write(payload[:part])
+        handle.write(payload[part : part * 2])
+        handle.write(payload[part * 2 :])
+
+    entry = next(o for o in s3_client.list_objects_v2(bucket).get("contents", []) if o["key"] == "written-big.bin")
+    assert "-" in entry["e_tag"]  # a multipart object's ETag is <hash>-<part-count>
+
+    with storage.open("written-big.bin") as handle:
+        assert handle.read() == payload
+
+
 def test_large_file_uploads_via_multipart(
     storage_factory: Callable[..., S3Storage],
     bucket: str,

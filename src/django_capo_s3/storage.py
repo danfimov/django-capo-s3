@@ -176,10 +176,24 @@ class S3Storage(Storage):
             msg = f"File does not exist: {name}"
             raise FileNotFoundError(msg) from exc
 
+    def write_file(self, name: str, content: File, size: int) -> None:
+        """Upload an open file to a file's exact key, without collision-avoidance renaming."""
+        self._uploader.upload(
+            self.bucket,
+            key=self.key(name),
+            content=content,
+            size=size,
+            meta=self._object_meta(name, content=content),
+        )
+
     def write_bytes(self, name: str, data: bytes) -> None:
         """Upload bytes to a file's exact key, without collision-avoidance renaming."""
         body = ContentFile(data)
-        self._uploader.upload(self.bucket, self.key(name), content=body, size=body.size, meta=self._object_meta(name))
+        self.write_file(
+            name=name,
+            content=body,
+            size=body.size,
+        )
 
     @cached_property
     def _uploader(self) -> S3Uploader:
