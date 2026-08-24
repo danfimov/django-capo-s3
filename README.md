@@ -262,3 +262,18 @@ Tune timeouts, the connection pool, retries, TLS verification, and proxies as ne
     "proxies": {"https": "http://proxy.internal:8080"},
 }
 ```
+
+To swap the HTTP transport itself — say for zapros' Rust backend — name a client builder and the handler that
+wraps it. The options above are applied to the builder by calling the matching method on it.
+
+```python
+from pyreqwest.client import SyncClientBuilder
+from zapros import PyreqwestHandler
+
+"OPTIONS": {
+    "bucket": "my-bucket",
+    "http_client_builder": SyncClientBuilder,  # needs the zapros[pyreqwest] extra
+    "http_handler": PyreqwestHandler,
+    "connect_timeout": 5.0,
+}
+```

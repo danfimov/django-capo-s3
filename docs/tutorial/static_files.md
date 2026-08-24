@@ -48,39 +48,10 @@ from S3 on startup. Passing `manifest_storage=FileSystemStorage(...)` keeps it o
 manifest is baked into your build/image and read locally, which is faster and avoids an S3 round trip per
 process.
 
-## Faster re-deploys (`skip_unchanged`)
+## Faster re-deploys
 
-Django's `collectstatic` decides whether to re-upload a file by comparing modification times. On a fresh
-checkout (CI, a new container image) every source file has a brand-new mtime, so **every asset is
-re-uploaded on every deploy** — often minutes of needless traffic.
-
-`S3ManifestStaticStorage` fixes this with `skip_unchanged` (**on by default**): during the hashing pass it
-lists the bucket once and skips uploading any object whose content already matches what's stored (compared by
-ETag). An unchanged deploy costs **zero uploads**.
-
-```python
-"OPTIONS": {
-    "bucket": "my-bucket",
-    "location": "static",
-    "skip_unchanged": True,  # the default; set to False to fall back to Django's behaviour
-}
-```
-
-What it does under the hood, scoped to the `collectstatic` run only:
-
-- one `list_objects_v2` to build a `{key: ETag}` index instead of a `HEAD` per file;
-- skips the `PUT` when the content hash matches the stored ETag;
-- skips the redundant delete-before-overwrite (S3 `PUT` overwrites anyway);
-- doesn't upload the intermediate hashed files each pass would otherwise write.
-
-The skip is by **content**, not mere existence: if the object at a key has different bytes, it is re-uploaded.
-
-Turn it off (`"skip_unchanged": False`) if your S3-compatible store computes ETags in a way that isn't a
-content MD5 — then the comparison can't match and you'd re-upload every time anyway.
-
-> **Multipart and SSE.** Very large assets stored as multipart uploads, or objects encrypted with SSE-KMS,
-> have ETags that aren't a plain content MD5. Those simply don't match and are re-uploaded — never wrongly
-> skipped.
+Unchanged assets are not re-uploaded on each deploy — `skip_unchanged` is on by default. See
+[Further optimizations](further_optimizations.md#faster-re-deploys-skip_unchanged).
 
 ## Plain static storage
 

@@ -3,7 +3,7 @@ import io
 import time
 from datetime import datetime
 from functools import cached_property
-from typing import IO, TYPE_CHECKING, Self, Unpack, cast
+from typing import IO, TYPE_CHECKING, Any, Self, Unpack, cast
 from urllib.parse import urlencode
 
 from capo_s3 import (
@@ -30,9 +30,11 @@ from zapros import BaseHandler, Client, StdNetworkHandler, SyncTransport
 from django_capo_s3.cloudfront import CloudFrontSigner
 from django_capo_s3.core import (
     DEFAULTS,
+    ClientBuilder,
     S3StorageOptions,
     batched,
     build_public_url,
+    configure_builder,
     guess_content_type,
     normalize_key,
     ssl_context_for,
@@ -42,6 +44,8 @@ from django_capo_s3.proxy import ProxyHandler
 from django_capo_s3.transfer import ObjectMeta, S3Uploader
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from capo_s3.types.object_identifier import ObjectIdentifier
 
 
@@ -58,6 +62,18 @@ class S3Storage(Storage):
         merged: S3StorageOptions = {**DEFAULTS, **options}
         if not merged.get("bucket"):
             msg = "S3Storage requires a non-empty 'bucket' option."
+            raise ImproperlyConfigured(msg)
+        # Both come from untyped settings, so they are checked at startup rather than at first request.
+        handler: object = merged.get("http_handler")
+        if handler is not None and not callable(handler):
+            msg = "http_handler must be a callable taking the client builder and returning a handler."
+            raise ImproperlyConfigured(msg)
+        builder: object = merged.get("http_client_builder")
+        if builder is not None and not callable(builder):
+            msg = "http_client_builder must be a callable returning a fresh client builder."
+            raise ImproperlyConfigured(msg)
+        if builder is not None and handler is None:
+            msg = "http_client_builder does nothing without an http_handler to hand the builder to."
             raise ImproperlyConfigured(msg)
         self.options = merged
 
@@ -96,7 +112,7 @@ class S3Storage(Storage):
             credentials=self.options.get("credentials"),
             credentials_provider=self._credentials_provider(),
             retry_max_attempts=self.options.get("retry_max_attempts"),
-            http_handler=self._http_handler(),
+            http_handler=self.http_handler,
         )
 
     def _credentials_provider(self) -> CredentialsProvider | None:
@@ -112,7 +128,7 @@ class S3Storage(Storage):
         profile = self.options.get("session_profile")
         if not profile:
             return None
-        client = Client(self._http_handler())
+        client = Client(self.http_handler)
         chain = CachedProvider(
             ChainedProvider(
                 AssumeRoleCredentialsProvider(client, profile),
@@ -123,8 +139,18 @@ class S3Storage(Storage):
         )
         return cast("CredentialsProvider", chain)  # capo's public credentials_provider param is typed narrower
 
-    def _http_handler(self) -> BaseHandler | None:
-        """Build a network handler only when TLS, timeouts, the pool size, or a proxy are customized."""
+    def _client_builder(self) -> ClientBuilder | None:
+        factory = self.options.get("http_client_builder")
+        if factory is None:
+            return None
+        return configure_builder(factory(), cast("Mapping[str, Any]", self.options))
+
+    @cached_property
+    def http_handler(self) -> BaseHandler | None:
+        """The handler for every outbound request, or None to let capo use its default."""
+        configured_http_handler = self.options.get("http_handler")
+        if configured_http_handler is not None:
+            return configured_http_handler(self._client_builder())
         context = ssl_context_for(verify=self.options.get("verify", True))
         pool = self.options.get("max_connections_per_host")
         proxies = self.options.get("proxies")
