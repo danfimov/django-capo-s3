@@ -26,7 +26,7 @@ This page compares only the **S3 part** of the two.
 | Text-mode `open()` of stored files | ✅ | ❌ ([#1526](https://github.com/jschneier/django-storages/issues/1526)) |
 | Streaming / concurrent multipart uploads | ✅ | ✅ |
 | Bulk delete | ✅ `delete_objects()` | ➖ per-object |
-| Multi-region routing helper | ✅ `for_region()` | ➖ manual |
+| Region and bucket routing helpers | ✅ `for_region()`, `for_bucket()` | ➖ manual |
 | Path-style public URLs for a separate public host | ✅ | ⚠️ ([#1142](https://github.com/jschneier/django-storages/issues/1142)) |
 | Refreshable credentials (IRSA / SSO, per request) | ✅ | ⚠️ ([#1493](https://github.com/jschneier/django-storages/issues/1493)) |
 | Backends beyond S3 (Azure, GCS, SFTP, …) | ❌ | ✅ |

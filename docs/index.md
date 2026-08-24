@@ -21,8 +21,8 @@ A Django file storage backend for S3-compatible object stores, built on the
   so an unchanged deploy costs no uploads.
 - **Streaming uploads** — single-`PUT` uploads that switch to a concurrent multipart transfer above a
   configurable threshold; transparent gzip for eligible content types.
-- **Multi-region routing** — `storage.for_region("eu-central-1")` clones the storage for another region at
-  runtime, cached per region.
+- **Region and bucket routing** — `storage.for_region("eu-central-1")` and `storage.for_bucket("archive")`
+  clone the storage at runtime, cached per value so each reuses one client and connection pool.
 - **Any S3-compatible provider** — AWS, MinIO, DigitalOcean Spaces, Backblaze B2, Cloudflare R2, Yandex,
   Hetzner, Alibaba OSS. See [Different providers](tutorial/different_providers.md).
 - **Refreshable credentials** — AWS profiles, SSO, and IRSA / web-identity tokens are resolved per request

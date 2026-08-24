@@ -84,7 +84,7 @@ class S3Storage(Storage):
         return self.options["bucket"]
 
     @cached_property
-    def _region_clones(self) -> dict[str, Self]:
+    def _clones(self) -> dict[tuple[str, str], Self]:
         return {}
 
     def for_region(self, region: str) -> Self:
@@ -94,13 +94,24 @@ class S3Storage(Storage):
         base storage once, then call for_region(...) to route objects to different regions at runtime — e.g.
         from a FileField that picks the region per model instance.
         """
-        if region == self.options.get("region"):
+        return self._clone_with("region", region)
+
+    def for_bucket(self, bucket: str) -> Self:
+        """Return a storage bound to a different bucket, reusing this instance's other options.
+
+        Cached per bucket like for_region, so reaching a second bucket costs one storage rather than one per
+        call — worth caring about, since a fresh storage means a fresh client and a fresh TLS handshake.
+        """
+        return self._clone_with("bucket", bucket)
+
+    def _clone_with(self, option: str, value: str) -> Self:
+        if value == self.options.get(option):
             return self
-        clone = self._region_clones.get(region)
+        clone = self._clones.get((option, value))
         if clone is None:
-            options: S3StorageOptions = {**self.options, "region": region}
-            clone = type(self)(**options)
-            self._region_clones[region] = clone
+            overridden = {**self.options, option: value}
+            clone = type(self)(**cast("S3StorageOptions", overridden))
+            self._clones[(option, value)] = clone
         return clone
 
     @cached_property
