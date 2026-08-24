@@ -185,12 +185,24 @@ class S3Storage(Storage):
             concurrency=self.options["multipart_concurrency"],
         )
 
-    def _object_meta(self, name: str, *, content_encoding: str | None = None) -> ObjectMeta:
+    def content_type(self, name: str, content: File | None = None) -> str:
+        """Resolve the Content-Type to store an object under."""
+        return (
+            self.options.get("object_parameters", {}).get("content_type")
+            or getattr(content, "content_type", None)
+            or guess_content_type(name)
+            or self.options["default_content_type"]
+        )
+
+    def _object_meta(
+        self, name: str, *, content: File | None = None, content_encoding: str | None = None
+    ) -> ObjectMeta:
+        extra = {k: v for k, v in self.options.get("object_parameters", {}).items() if k != "content_type"}
         return ObjectMeta(
-            content_type=guess_content_type(name),
+            content_type=self.content_type(name, content),
             content_encoding=content_encoding,
             acl=self.options.get("default_acl"),
-            extra=self.options.get("object_parameters", {}),
+            extra=extra,
         )
 
     def _open(self, name: str, mode: str = "rb") -> File:
@@ -201,7 +213,7 @@ class S3Storage(Storage):
         """Store a file, gzip-compressing it first when its content type is eligible."""
         content.seek(0)
         key = self.key(name)
-        if self._should_gzip(guess_content_type(name)):
+        if self._should_gzip(self.content_type(name, content)):
             body = ContentFile(
                 gzip.compress(
                     content.read(),
@@ -209,10 +221,16 @@ class S3Storage(Storage):
                 )
             )
             self._uploader.upload(
-                self.bucket, key, content=body, size=body.size, meta=self._object_meta(name, content_encoding="gzip")
+                self.bucket,
+                key,
+                content=body,
+                size=body.size,
+                meta=self._object_meta(name, content=content, content_encoding="gzip"),
             )
         else:
-            self._uploader.upload(self.bucket, key, content=content, size=content.size, meta=self._object_meta(name))
+            self._uploader.upload(
+                self.bucket, key, content=content, size=content.size, meta=self._object_meta(name, content=content)
+            )
         return name
 
     @override

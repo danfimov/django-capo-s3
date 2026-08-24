@@ -33,6 +33,7 @@ class S3StorageOptions(TypedDict, total=False):
     default_acl: ObjectCannedACL | None
     gzip: bool
     gzip_content_types: tuple[str, ...]
+    default_content_type: str
     object_parameters: dict[str, str]
     max_memory_size: int
     multipart_threshold: int
@@ -58,6 +59,8 @@ DEFAULT_GZIP_CONTENT_TYPES: Final[tuple[str, ...]] = (
     "image/svg+xml",
 )
 
+DEFAULT_CONTENT_TYPE: Final[str] = "application/octet-stream"
+
 DEFAULTS: Final[S3StorageOptions] = {
     "location": "",
     "endpoint": None,
@@ -75,6 +78,7 @@ DEFAULTS: Final[S3StorageOptions] = {
     "default_acl": None,
     "gzip": False,
     "gzip_content_types": DEFAULT_GZIP_CONTENT_TYPES,
+    "default_content_type": DEFAULT_CONTENT_TYPE,
     "object_parameters": {},
     "max_memory_size": 10 * 1024 * 1024,
     "multipart_threshold": 64 * 1024 * 1024,

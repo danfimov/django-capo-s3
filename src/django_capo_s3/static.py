@@ -9,7 +9,7 @@ from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
 from typing_extensions import override
 
-from django_capo_s3.core import S3StorageOptions, guess_content_type
+from django_capo_s3.core import S3StorageOptions
 from django_capo_s3.storage import S3Storage
 
 
@@ -105,7 +105,7 @@ class S3ManifestStaticStorage(ManifestFilesMixin, S3StaticStorage):  # type: ign
         data = content.read()
         if isinstance(data, str):
             data = data.encode()
-        gzipped = self._should_gzip(guess_content_type(name))
+        gzipped = self._should_gzip(self.content_type(name, content))
         stored = gzip.compress(data, mtime=0) if gzipped else data
         key = self.key(name)
         digest = hashlib.md5(stored, usedforsecurity=False).hexdigest()
@@ -117,7 +117,7 @@ class S3ManifestStaticStorage(ManifestFilesMixin, S3StaticStorage):  # type: ign
             key,
             content=body,
             size=body.size,
-            meta=self._object_meta(name, content_encoding="gzip" if gzipped else None),
+            meta=self._object_meta(name, content=content, content_encoding="gzip" if gzipped else None),
         )
         self._remote_etags[key] = digest
         return name
