@@ -1,11 +1,23 @@
+import logging
 import mimetypes
 import ssl
-from collections.abc import Iterator, Sequence
-from typing import Final, TypedDict, TypeVar
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from datetime import timedelta
+from typing import Any, Final, Protocol, TypedDict, TypeVar
 from urllib.parse import quote
 
 from capo_s3 import Credentials
 from capo_s3.types.object_canned_acl import ObjectCannedACL
+from zapros import BaseHandler
+
+
+class ClientBuilder(Protocol):
+    """A transport's own configuration object, as returned by the http_client_builder option.
+
+    Deliberately structural and empty: builders expose different methods, and the ones the storage knows about
+    are looked up by name at runtime, so requiring any of them here would rule out transports that simply
+    name things differently.
+    """
 
 
 class S3StorageOptions(TypedDict, total=False):
@@ -48,6 +60,8 @@ class S3StorageOptions(TypedDict, total=False):
     total_timeout: float | None
     max_connections_per_host: int | None
     proxies: dict[str, str] | None
+    http_client_builder: Callable[[], ClientBuilder] | None
+    http_handler: Callable[[Any], BaseHandler] | None
 
 
 DEFAULT_GZIP_CONTENT_TYPES: Final[tuple[str, ...]] = (
@@ -93,7 +107,47 @@ DEFAULTS: Final[S3StorageOptions] = {
     "total_timeout": None,
     "max_connections_per_host": None,
     "proxies": None,
+    "http_client_builder": None,
+    "http_handler": None,
 }
+
+logger = logging.getLogger(__name__)
+
+# Storage option -> the builder method that applies it. Builders name things differently and expose different
+# knobs, so this is applied best-effort: a builder without the method is logged, not an error.
+TRANSPORT_METHODS: Final[tuple[tuple[str, str], ...]] = (
+    ("connect_timeout", "connect_timeout"),
+    ("read_timeout", "read_timeout"),
+    ("write_timeout", "write_timeout"),
+    ("total_timeout", "timeout"),
+    ("max_connections_per_host", "pool_max_idle_per_host"),
+)
+
+# Durations go in as timedelta rather than seconds, which is what builders of this shape expect.
+_DURATION_OPTIONS: Final[frozenset[str]] = frozenset(
+    {"connect_timeout", "read_timeout", "write_timeout", "total_timeout"}
+)
+
+# These need a transport-specific object (a proxy builder, a parsed certificate), so they stay with whoever
+# owns the builder.
+_BUILDER_OWNED_OPTIONS: Final[tuple[str, ...]] = ("proxies", "verify")
+
+
+def configure_builder(builder: ClientBuilder, options: Mapping[str, Any]) -> ClientBuilder:
+    """Apply the storage's transport options to a client builder by calling the matching method for each."""
+    for option, method in TRANSPORT_METHODS:
+        value = options.get(option)
+        if value is None:
+            continue
+        apply = getattr(builder, method, None)
+        if apply is None:
+            logger.warning("Ignoring %s: the client builder has no %s().", option, method)
+            continue
+        builder = apply(timedelta(seconds=value) if option in _DURATION_OPTIONS else value)
+    for option in _BUILDER_OWNED_OPTIONS:
+        if options.get(option) not in (None, True):
+            logger.warning("Ignoring %s: set it on the client builder instead.", option)
+    return builder
 
 
 def normalize_key(location: str, name: str) -> str:
