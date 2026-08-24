@@ -11,8 +11,8 @@ title: Download URLs
 By default `url()` returns a time-limited presigned URL, valid for `url_expire` seconds (default `3600`):
 
 ```python
-storage.url("reports/june.csv")                 # presigned, default lifetime
-storage.url("reports/june.csv", expire=60)      # presigned, valid for 60 seconds
+storage.url("reports/june.csv")  # presigned, default lifetime
+storage.url("reports/june.csv", expire=60)  # presigned, valid for 60 seconds
 ```
 
 ### Response overrides

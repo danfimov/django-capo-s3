@@ -65,12 +65,14 @@ With `STORAGES["default"]` configured, `FileField` / `ImageField` just work — 
 ```python
 from django.db import models
 
+
 class Report(models.Model):
     csv = models.FileField(upload_to="reports/")
 
+
 report = Report.objects.create(csv=uploaded_file)
-report.csv.url            # presigned URL to the object
-report.csv.size           # size in bytes
+report.csv.url  # presigned URL to the object
+report.csv.size  # size in bytes
 report.csv.open().read()  # file contents
 ```
 
@@ -82,10 +84,10 @@ from django.core.files.storage import storages
 
 storage = storages["default"]
 name = storage.save("reports/june.csv", ContentFile(b"col1,col2\n"))
-storage.exists(name)          # True
+storage.exists(name)  # True
 with storage.open(name) as f:
     data = f.read()
-storage.delete(name)          # no error if it's already gone
+storage.delete(name)  # no error if it's already gone
 ```
 
 Credentials are read from the storage `OPTIONS`, a named AWS profile (`session_profile`), or the standard AWS

@@ -61,12 +61,14 @@ Most apps never touch storage directly. With `STORAGES["default"]` configured (a
 ```python
 from django.db import models
 
+
 class Report(models.Model):
     csv = models.FileField(upload_to="reports/")
 
+
 report = Report.objects.create(csv=uploaded_file)
-report.csv.url            # presigned URL to the object
-report.csv.size           # size in bytes
+report.csv.url  # presigned URL to the object
+report.csv.size  # size in bytes
 report.csv.open().read()  # file contents
 ```
 
@@ -80,11 +82,11 @@ from django.core.files.storage import storages
 
 storage = storages["default"]
 name = storage.save("reports/june.csv", ContentFile(b"col1,col2\n"))  # returns the stored name
-storage.exists(name)          # True
-storage.size(name)            # size in bytes
+storage.exists(name)  # True
+storage.size(name)  # size in bytes
 with storage.open(name) as f:
     data = f.read()
-storage.delete(name)          # no error if it's already gone
+storage.delete(name)  # no error if it's already gone
 ```
 
 ### Download URLs
@@ -93,8 +95,8 @@ storage.delete(name)          # no error if it's already gone
 force a browser "Save as" with a filename.
 
 ```python
-storage.url("reports/june.csv")                # presigned, default lifetime (url_expire)
-storage.url("reports/june.csv", expire=60)     # presigned, valid for 60 seconds
+storage.url("reports/june.csv")  # presigned, default lifetime (url_expire)
+storage.url("reports/june.csv", expire=60)  # presigned, valid for 60 seconds
 storage.url(
     "reports/june.csv",
     parameters={"response_content_disposition": 'attachment; filename="june.csv"'},
@@ -120,8 +122,9 @@ for example from a model's `FileField`.
 
 ```python
 storage = storages["default"]
-storage.for_region("sa-east-1").save("br/report.csv", content)   # store in São Paulo
+storage.for_region("sa-east-1").save("br/report.csv", content)  # store in São Paulo
 storage.for_region("ap-southeast-2").save("au/report.csv", content)  # store in Sydney
+
 
 class Report(models.Model):
     region = models.CharField(max_length=20)
@@ -191,6 +194,20 @@ gzip-compressed and are transparently decompressed on read.
     "multipart_chunksize": 16 * 1024 * 1024,
     "multipart_concurrency": 8,               # parts uploaded in parallel
     "gzip": True,                             # compress CSS/JS/JSON/... at rest
+}
+```
+
+### Content types
+
+Each upload's `Content-Type` is resolved in this order: an explicit `content_type` in `object_parameters`, the type the
+file object itself reports (Django's uploaded files carry the one the client sent), the guess from the name's extension,
+then `default_content_type`. That last step matters for extensionless keys such as `statements/<uuid>`, which would
+otherwise be stored with no `Content-Type` at all.
+
+```python
+"OPTIONS": {
+    "bucket": "my-bucket",
+    "default_content_type": "application/octet-stream",  # the default; used when nothing else is known
 }
 ```
 

@@ -1,15 +1,63 @@
 from collections.abc import Callable
 
+import pytest
 from capo_s3 import S3Client
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from django_capo_s3.storage import S3Storage
 
 
-def test_content_type_is_guessed_and_stored(storage: S3Storage, bucket: str, s3_client: S3Client):
-    storage.save("notes.txt", ContentFile(b"hi"))
-    with s3_client.get_object(bucket, "notes.txt") as out:
-        assert out.get("content_type") == "text/plain"
+@pytest.mark.parametrize(
+    ("name", "declared", "options", "expected"),
+    [
+        pytest.param("notes.txt", None, {}, "text/plain", id="guessed-from-the-extension"),
+        pytest.param("statements/8f21", "application/pdf", {}, "application/pdf", id="from-the-content"),
+        pytest.param("report.txt", "application/pdf", {}, "application/pdf", id="content-beats-the-extension"),
+        pytest.param("statements/9c04", None, {}, "application/octet-stream", id="nothing-known-so-the-default"),
+        pytest.param(
+            "statements/1a77",
+            None,
+            {"default_content_type": "binary/octet-stream"},
+            "binary/octet-stream",
+            id="the-default-is-configurable",
+        ),
+        pytest.param(
+            "report.txt",
+            "application/pdf",
+            {"object_parameters": {"content_type": "application/x-forced"}},
+            "application/x-forced",
+            id="object-parameters-beat-everything",
+        ),
+    ],
+)
+def test_content_type_resolution(  # noqa: PLR0913, PLR0917
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+    name: str,
+    declared: str | None,
+    options: dict[str, object],
+    expected: str,
+):
+    storage = storage_factory(**options)
+    content = ContentFile(b"x") if declared is None else SimpleUploadedFile(name, b"x", content_type=declared)
+    storage.save(name, content)
+    with s3_client.get_object(bucket, name) as out:
+        assert out.get("content_type") == expected
+
+
+def test_gzip_uses_the_content_reported_type(
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+):
+    storage = storage_factory(gzip=True)
+    body = b"body{color:red}" * 100
+    storage.save("assets/1b3f", SimpleUploadedFile("style", body, content_type="text/css"))
+    with s3_client.get_object(bucket, "assets/1b3f") as out:
+        assert out.get("content_encoding") == "gzip"
+        assert out.get("content_type") == "text/css"
 
 
 def test_gzip_compresses_matching_content_types(
