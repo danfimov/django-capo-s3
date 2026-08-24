@@ -266,9 +266,23 @@ class S3Storage(Storage):
         """Open a file as a lazily fetched, buffered handle."""
         return S3File(name, mode, self)
 
+    def object_name(self, name: str, content: File) -> str:  # noqa: ARG002
+        """Return the name to store content under. Override to derive the name from the content itself.
+
+        The default keeps the name it was given. This is the seam for things like normalizing an extension
+        from the content's own type or deriving a content-addressed name: whatever it returns becomes both the
+        object key and the name Django records on the model field, so the two can't drift apart.
+
+        Note that Django resolves collisions before this runs, so a name produced here is not checked against
+        the bucket — with file_overwrite off, returning the name of an existing object still overwrites it.
+        """
+        return name
+
     def _save(self, name: str, content: File) -> str:
         """Store a file, gzip-compressing it first when its content type is eligible."""
         content.seek(0)
+        name = self.object_name(name, content)
+        content.seek(0)  # the hook is free to read the content, so don't make overrides rewind for us
         key = self.key(name)
         if self._should_gzip(self.content_type(name, content)):
             body = ContentFile(
