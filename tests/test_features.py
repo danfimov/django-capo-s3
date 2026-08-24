@@ -206,3 +206,23 @@ def test_multipart_upload_is_correct_with_concurrency(storage_factory: Callable[
     storage.save("ordered.bin", ContentFile(payload))
     with storage.open("ordered.bin") as handle:
         assert handle.read() == payload
+
+
+@pytest.mark.timeout(20)
+def test_an_in_memory_upload_is_still_split_into_parts(
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+):
+    # InMemoryUploadedFile.chunks() ignores the size it is given and yields the whole body, so the uploader has to slice
+    # the content itself or the transfer collapses into one oversized part.
+    part = 5 * 1024 * 1024
+    storage = storage_factory(multipart_threshold=part, multipart_chunksize=part)
+    payload = b"1" * part + b"2" * part + b"3" * 2048
+    storage.save("memory/big.bin", SimpleUploadedFile("big.bin", payload))
+
+    entry = next(o for o in s3_client.list_objects_v2(bucket).get("contents", []) if o["key"] == "memory/big.bin")
+    assert entry["e_tag"].rstrip('"').endswith("-3")  # three parts, not one
+
+    with storage.open("memory/big.bin") as handle:
+        assert handle.read() == payload

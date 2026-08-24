@@ -1,5 +1,5 @@
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 
@@ -85,7 +85,18 @@ class S3Uploader:
 
         submitted: list[Future[CompletedPart]] = []
         with ThreadPoolExecutor(max_workers=self._concurrency) as pool:
-            for number, chunk in enumerate(content.chunks(chunk_size=self._chunk_size), start=1):
+            for number, chunk in enumerate(self._parts(content), start=1):
                 in_flight.acquire()
                 submitted.append(pool.submit(upload_one, number, chunk))
             return [future.result() for future in submitted]
+
+    def _parts(self, content: File) -> Iterator[bytes]:
+        """Slice content into parts of the configured size.
+
+        Read directly rather than through File.chunks(chunk_size=...), which not every file object honours:
+        Django's InMemoryUploadedFile ignores the size it is handed and yields the whole body in one piece,
+        which would collapse the transfer into a single oversized part.
+        """
+        content.seek(0)
+        while chunk := content.read(self._chunk_size):
+            yield chunk
