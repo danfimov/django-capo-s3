@@ -1,6 +1,7 @@
 import gzip
 import io
 import time
+import zlib
 from datetime import datetime
 from functools import cached_property
 from typing import IO, TYPE_CHECKING, Any, Self, Unpack, cast
@@ -208,8 +209,15 @@ class S3Storage(Storage):
         """Stream an object into a writable binary target, one chunk at a time."""
         try:
             with self.client.get_object(self.bucket, self.key(name)) as output:
-                for chunk in output["body"]:
-                    target.write(chunk)
+                if output.get("content_encoding") == "gzip":
+                    gzip_window_bits = zlib.MAX_WBITS | 16
+                    decompressor = zlib.decompressobj(gzip_window_bits)
+                    for chunk in output["body"]:
+                        target.write(decompressor.decompress(chunk))
+                    target.write(decompressor.flush())
+                else:
+                    for chunk in output["body"]:
+                        target.write(chunk)
         except NoSuchKey as exc:
             msg = f"File does not exist: {name}"
             raise FileNotFoundError(msg) from exc
