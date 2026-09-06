@@ -14,6 +14,19 @@ from django_capo_s3.core import S3StorageOptions
 from django_capo_s3.storage import S3Storage
 
 
+def _record_calls(monkeypatch: pytest.MonkeyPatch, storage: S3Storage, method: str) -> list[str]:
+    """Spy on one client method so a test can assert which keys it was called for, if any."""
+    keys: list[str] = []
+    real = getattr(storage.client, method)
+
+    def spy(bucket: str, key: str, *args: object, **kwargs: object) -> object:
+        keys.append(key)
+        return real(bucket, key, *args, **kwargs)
+
+    monkeypatch.setattr(storage.client, method, spy)
+    return keys
+
+
 def test_save_open_roundtrip(storage: S3Storage):
     name = storage.save("dir/hello.txt", ContentFile(b"hi there"))
     assert name == "dir/hello.txt"
@@ -167,6 +180,64 @@ def test_write_mode_file_flushes_on_close(storage: S3Storage):
     handle.close()
     with storage.open("written.txt") as reopened:
         assert reopened.read() == b"streamed"
+
+
+def test_size_of_an_unread_handle_costs_a_head_not_a_download(storage: S3Storage, monkeypatch: pytest.MonkeyPatch):
+    storage.save("weighed.bin", ContentFile(b"x" * 4096))
+    with storage.open("weighed.bin") as handle:
+        heads = _record_calls(monkeypatch, storage, "head_object")
+        gets = _record_calls(monkeypatch, storage, "get_object")
+        assert handle.size == 4096
+        assert handle.size == 4096  # remembered for the life of the handle, so looking twice costs nothing
+        assert heads == ["weighed.bin"]
+        assert gets == []  # measuring never pulls the object down
+
+
+def test_size_of_a_read_handle_comes_from_the_buffer(storage: S3Storage, monkeypatch: pytest.MonkeyPatch):
+    storage.save("grown.txt", ContentFile(b"abc"))
+    with storage.open("grown.txt") as handle:
+        assert handle.read() == b"abc"
+        heads = _record_calls(monkeypatch, storage, "head_object")
+        assert handle.size == 3
+        assert heads == []  # the buffer is already here to measure
+
+
+def test_size_of_a_write_handle_is_what_is_buffered(storage: S3Storage, monkeypatch: pytest.MonkeyPatch):
+    storage.save("draft.txt", ContentFile(b"the stored version"))
+    heads = _record_calls(monkeypatch, storage, "head_object")
+    with storage.open("draft.txt", "wb") as handle:
+        assert handle.size == 0  # "wb" truncates, so the stored object's size is not the answer
+        handle.write(b"streamed")
+        assert handle.size == len(b"streamed")
+    assert heads == []
+    assert storage.size("draft.txt") == len(b"streamed")
+
+
+@pytest.mark.parametrize(
+    ("mode", "head", "rest"),
+    [
+        pytest.param("rb", b"0123", b"456789", id="binary"),
+        pytest.param("rt", "0123", "456789", id="text"),
+    ],
+)
+def test_measuring_a_handle_leaves_the_read_position_alone(
+    storage: S3Storage,
+    mode: str,
+    head: bytes | str,
+    rest: bytes | str,
+):
+    storage.save("cursor.bin", ContentFile(b"0123456789"))
+    with storage.open("cursor.bin", mode) as handle:
+        assert handle.read(4) == head
+        assert handle.size == 10
+        assert handle.read() == rest  # measuring seeks to the end and back, so the rest is still there
+
+
+def test_a_text_handle_reports_its_size_in_bytes(storage: S3Storage):
+    storage.save("accented.txt", ContentFile("h\u00e9llo".encode()))  # five characters, six UTF-8 bytes
+    with storage.open("accented.txt", "rt") as handle:
+        assert handle.size == 6
+        assert len(handle.read()) == 5
 
 
 def test_text_mode_read_returns_str(storage: S3Storage):
