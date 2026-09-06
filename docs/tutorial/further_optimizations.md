@@ -27,7 +27,8 @@ ETag). An unchanged deploy costs **zero uploads**.
 
 What it does under the hood, scoped to the `collectstatic` run only:
 
-- one `list_objects_v2` to build a `{key: ETag}` index instead of a `HEAD` per file;
+- one `list_objects_v2` to build a `{key: ETag}` index, which then answers Django's existence checks — no `HEAD` per
+  file per hashing pass;
 - skips the `PUT` when the content hash matches the stored ETag;
 - skips the redundant delete-before-overwrite (S3 `PUT` overwrites anyway);
 - doesn't upload the intermediate hashed files each pass would otherwise write.

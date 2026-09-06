@@ -38,9 +38,9 @@ class S3ManifestStaticStorage(ManifestFilesMixin, S3StaticStorage):  # type: ign
     Pass manifest_storage to keep the manifest somewhere other than the bucket (say, a local FileSystemStorage)
     so workers don't fetch it from S3 on startup. By default it lives in the bucket next to the assets.
 
-    On collectstatic the hashing pass lists the bucket once and skips re-uploading any asset whose content is
-    already stored, so an unchanged redeploy costs no uploads. Turn it off with skip_unchanged=False (e.g. for
-    an S3-compatible store whose ETag isn't a content MD5).
+    On collectstatic the hashing pass lists the bucket once, answers Django's existence checks from that listing,
+    and skips re-uploading any asset whose content is already stored — so an unchanged redeploy costs no requests beyond
+    the listing. Turn it off with skip_unchanged=False (e.g. for an S3-compatible store whose ETag isn't a content MD5).
     """
 
     # Don't upload the pre-substitution hashed file that each pass would otherwise overwrite — only the final
@@ -95,6 +95,13 @@ class S3ManifestStaticStorage(ManifestFilesMixin, S3StaticStorage):  # type: ign
         if self._is_collectstatic_running:
             return
         super().delete(name)
+
+    @override
+    def exists(self, name: str) -> bool:
+        """Get info about existance from the ETag."""
+        if self._is_collectstatic_running:
+            return self.key(name) in self._remote_etags
+        return super().exists(name)
 
     @override
     def _save(self, name: str, content: File) -> str:
