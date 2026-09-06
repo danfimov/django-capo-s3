@@ -24,6 +24,19 @@ def _record_uploads(monkeypatch: pytest.MonkeyPatch, storage: S3StaticStorage) -
     return keys
 
 
+def _record_heads(monkeypatch: pytest.MonkeyPatch, storage: S3StaticStorage) -> list[str]:
+    """Spy on the client so a test can assert which keys were HEADed, if any."""
+    keys: list[str] = []
+    real = storage.client.head_object
+
+    def spy(bucket: str, key: str, **kwargs: object) -> object:
+        keys.append(key)
+        return real(bucket, key, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(storage.client, "head_object", spy)
+    return keys
+
+
 def test_plain_static_defaults(plain_static_storage: S3StaticStorage):
     assert plain_static_storage.options == IsPartialDict(file_overwrite=True, querystring_auth=False)
 
@@ -175,3 +188,36 @@ def test_gzipped_asset_skips_unchanged(
     recorded = _record_uploads(monkeypatch, storage)
     list(storage.post_process(paths))
     assert recorded == []
+
+
+def test_collect_answers_existence_without_head_requests(
+    manifest_static_storage: S3ManifestStaticStorage,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    storage = manifest_static_storage
+    storage.save("app.css", ContentFile(b'@import url("dep.css");body{color:red}'))
+    storage.save("dep.css", ContentFile(b".d{margin:0}"))
+    paths = {"app.css": (storage, "app.css"), "dep.css": (storage, "dep.css")}
+
+    heads = _record_heads(monkeypatch, storage)
+    list(storage.post_process(paths))
+    assert heads == []
+
+
+def test_existence_index_matches_the_bucket(
+    manifest_static_storage: S3ManifestStaticStorage,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    storage = manifest_static_storage
+    storage.save("app.css", ContentFile(b"body{color:red}"))
+
+    heads = _record_heads(monkeypatch, storage)
+    with storage._collect_session():  # noqa: SLF001
+        assert storage.exists("app.css")  # listed when the session opened
+        assert not storage.exists("missing.css")
+        storage._save("fresh.css", ContentFile(b".f{margin:0}"))  # noqa: SLF001
+        assert storage.exists("fresh.css")  # written during the session, so the index knows it too
+    assert heads == []
+
+    assert storage.exists("app.css")  # outside a session it is a plain HEAD again
+    assert heads == ["static/app.css"]
