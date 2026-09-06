@@ -41,6 +41,7 @@ class S3File(File):
         self._raw: SpooledTemporaryFile[bytes] | None = None
         self._text: io.TextIOWrapper | None = None
         self._is_dirty = False
+        self._remote_size: int | None = None
 
     @property
     def raw(self) -> SpooledTemporaryFile[bytes]:
@@ -74,6 +75,29 @@ class S3File(File):
             )
         return self._text
 
+    @property
+    @override
+    def size(self) -> int:
+        """The size in bytes, without downloading the object just to measure it."""
+        if self._raw is not None:
+            return self._buffered_size()
+        if "r" not in self.mode:
+            return 0  # a write handle with nothing written yet, so there is no stored object to ask about
+        if self._remote_size is None:
+            self._remote_size = self._storage.size(self._name)
+        return self._remote_size
+
+    def _buffered_size(self) -> int:
+        """Measure the buffer, flushing pending text writes first and leaving the read position where it was."""
+        if self._text is not None:
+            self._text.flush()
+        raw = self.raw
+        position = raw.tell()
+        raw.seek(0, io.SEEK_END)
+        size = raw.tell()
+        raw.seek(position)
+        return size
+
     @override
     def read(self, size: int | None = None) -> bytes | str:
         """Read from the buffer, either a given number of bytes/characters or the whole object."""
@@ -96,20 +120,16 @@ class S3File(File):
     @override
     def close(self) -> None:
         """Flush pending writes back to S3 and release the buffer."""
-        if self._raw is None:
+        raw = self._raw
+        if raw is None:
             return
         if self._is_dirty:
-            if self._text is not None:
-                self._text.flush()
-            # Measure by seeking rather than trusting File.size: on a rolled-over spool that reads the temp
-            # file's length off disk, which can lag behind buffered writes.
-            self._raw.seek(0, io.SEEK_END)
-            size = self._raw.tell()
-            self._raw.seek(0)
-            self._storage.write_file(self._name, File(self._raw), size)
+            size = self._buffered_size()
+            raw.seek(0)
+            self._storage.write_file(self._name, File(raw), size)
             self._is_dirty = False
         if self._text is not None:
             self._text.detach()  # Detach so closing the wrapper doesn't also close the buffer we close ourselves below.
             self._text = None
-        self._raw.close()
+        raw.close()
         self._raw = None
