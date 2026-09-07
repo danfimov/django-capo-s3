@@ -15,6 +15,7 @@ nav = [
     "tutorial/download_urls.md",
     "tutorial/different_providers.md",
     "tutorial/further_optimizations.md",
+    "tutorial/testing.md",
   ]},
   { "Contributing" = "contributing.md" },
 ]

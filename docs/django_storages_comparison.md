@@ -29,6 +29,7 @@ This page compares only the **S3 part** of the two.
 | Region and bucket routing helpers | ✅ `for_region()`, `for_bucket()` | ➖ manual |
 | Path-style public URLs for a separate public host | ✅ | ⚠️ ([#1142](https://github.com/jschneier/django-storages/issues/1142)) |
 | Refreshable credentials (IRSA / SSO, per request) | ✅ | ⚠️ ([#1493](https://github.com/jschneier/django-storages/issues/1493)) |
+| Test doubles for S3 (in-memory service, call assertions) | ✅ `django_capo_s3.testing` | ❌ (needs `moto` / `boto3` stubs) |
 | Backends beyond S3 (Azure, GCS, SFTP, …) | ❌ | ✅ |
 | Maturity, adoption, ecosystem | new | very high |
 

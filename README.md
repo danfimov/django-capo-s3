@@ -22,6 +22,8 @@ client instead of boto3 — a drop-in alternative to `django-storages[s3]`.
   through to the underlying request.
 - **Flexible networking options** — custom endpoint (e.g. MinIO), path- or virtual-host addressing, TLS verification and
   custom CA bundles, connection timeouts, pool size, HTTP/HTTPS/SOCKS5 proxies, and retry attempts.
+- **Test helpers** — `django_capo_s3.testing` ships an in-memory S3 service that speaks the real wire protocol:
+  tests drive the actual backend with no bucket and no network, then assert on the requests it made.
 - **Fully typed** — this is already the bare minimum for new packages.
 
 ## Installation
@@ -289,3 +291,28 @@ from zapros import PyreqwestHandler
     "connect_timeout": 5.0,
 }
 ```
+
+## Testing
+
+`django_capo_s3.testing` ships an in-memory S3 service. It speaks the real wire protocol, so a test drives the
+actual backend — signing, XML, gzip, multipart — with no bucket and no network, and records every request it
+served.
+
+```python
+from django.core.files.base import ContentFile
+from django_capo_s3.testing import mock_s3
+
+
+def test_report_is_uploaded():
+    with mock_s3() as s3:
+        storage = s3.storage(location="media")
+
+        storage.save("report.csv", ContentFile(b"a,b,c"))
+
+        assert s3["media/report.csv"] == b"a,b,c"
+        assert s3.calls.operations == ["PutObject"]
+        assert s3.calls.last.headers["content-type"] == "text/csv"
+```
+
+There are pytest fixtures, helpers for taking presigned URLs and SigV4 headers apart, and `s3.fail(...)` for
+the error paths. See the [testing guide](https://danfimov.github.io/django-capo-s3/tutorial/testing/).

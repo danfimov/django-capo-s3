@@ -27,6 +27,8 @@ A Django file storage backend for S3-compatible object stores, built on the
   Hetzner, Alibaba OSS. See [Different providers](tutorial/different_providers.md).
 - **Refreshable credentials** — AWS profiles, SSO, and IRSA / web-identity tokens are resolved per request
   and refreshed on expiry (no more silent failures on long-running pods).
+- **Test helpers** — an in-memory S3 service that speaks the real wire protocol, so tests exercise the actual
+  backend with no bucket and no network, and assert on the requests it made. See [Testing](tutorial/testing.md).
 
 Coming from django-storages? See the [comparison](django_storages_comparison.md).
 

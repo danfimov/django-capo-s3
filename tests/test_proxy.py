@@ -1,5 +1,3 @@
-"""Unit tests for ProxyHandler (no network)."""
-
 from unittest.mock import Mock
 
 from django_capo_s3.proxy import ProxyHandler
