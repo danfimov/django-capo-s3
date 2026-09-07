@@ -30,6 +30,10 @@ format: ## Run formatters
 test: ## Run tests
 	@uv run pytest
 
+.PHONY: docs
+docs: ## Build and serve the documentation locally
+	@uv run zensical serve
+
 .PHONY: example_collectstatic
 example_collectstatic: ## Run the example app's collectstatic against local MinIO
 	@uv run python example_app/probe.py ensure-bucket
