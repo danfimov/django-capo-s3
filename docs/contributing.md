@@ -1,5 +1,5 @@
 ---
-title: Contributing and Development
+title: How to contribute
 ---
 
-## Contributing
+--8<-- "CONTRIBUTING.md"
