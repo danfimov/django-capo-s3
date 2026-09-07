@@ -9,6 +9,8 @@ addopts = [
     "--timeout=2",
     "--timeout-method=signal",
 
+    "-p django_capo_s3.testing.plugin",
+
     "-p no:pastebin",
     "-p no:doctest",
     "-p no:legacypath",
