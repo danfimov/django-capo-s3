@@ -52,7 +52,7 @@ Before building this, we read the open S3 issues in django-storages. Several of 
 
 - **Text-mode reads of stored files** ([#1526](https://github.com/jschneier/django-storages/issues/1526),
   [#1348](https://github.com/jschneier/django-storages/issues/1348)) — `open(name, "rt")` returns `str`, and
-  gzip-compressed objects are transparently decompressed on read.
+  on a `gzip` storage compressed objects are transparently decompressed on read.
 
 - **Browser uploads with a policy** — django-storages has no presigned POST, so direct browser uploads either use
   a presigned `PUT` that accepts any size and type, or call boto3's `generate_presigned_post` by hand and rebuild

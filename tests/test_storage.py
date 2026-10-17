@@ -430,9 +430,15 @@ def test_clone_overrides_one_option_and_is_cached(clone_for: str, option: str, c
     clone = getattr(base, clone_for)(other)
     assert clone is not base
     assert clone.options == IsPartialDict({option: other, "location": "media"})
+    assert (getattr(clone, option), clone.location) == (other, "media")
     assert base.options[option] == current  # base is left untouched
     assert getattr(base, clone_for)(other) is clone  # same value -> cached instance
     assert getattr(base, clone_for)(current) is base  # the current value -> self
+
+
+def test_when_location_and_region_are_not_configured_then_they_read_as_empty_and_none():
+    storage = S3Storage(bucket="b")
+    assert (storage.location, storage.region) == ("", None)
 
 
 def test_region_and_bucket_clones_do_not_collide():

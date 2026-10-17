@@ -210,6 +210,10 @@ storage.url("report.pdf", parameters={"response_content_disposition": 'attachmen
 Uploads switch to a concurrent multipart transfer above `multipart_threshold`; text assets can be stored
 gzip-compressed and are transparently decompressed on read.
 
+Decompression on read is tied to `gzip` being on, as in django-storages. A storage with `gzip` off returns the
+stored bytes even for an object with `Content-Encoding: gzip` — which is how django-storages labels `.gz` files it
+saves as-is, so code that already reads them compressed keeps working after the switch.
+
 ```python
 "OPTIONS": {
     "bucket": "my-bucket",

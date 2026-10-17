@@ -90,6 +90,16 @@ class S3Storage(Storage):
         """The target bucket name."""
         return self.options["bucket"]
 
+    @property
+    def location(self) -> str:
+        """The key prefix every file name is stored under, for code that builds object keys or URLs by hand."""
+        return self.options.get("location", "")
+
+    @property
+    def region(self) -> str | None:
+        """The region the client signs for, or None when it is left to the environment, for building sibling clients."""
+        return self.options.get("region")
+
     @cached_property
     def _clones(self) -> dict[tuple[str, str], Self]:
         return {}
@@ -213,10 +223,14 @@ class S3Storage(Storage):
         return buffer.getvalue()
 
     def download_into(self, name: str, target: IO[bytes]) -> None:
-        """Stream an object into a writable binary target, one chunk at a time."""
+        """Stream an object into a writable binary target, one chunk at a time.
+
+        Only a gzip storage undoes Content-Encoding: gzip. Elsewhere that header is how django-storages labels
+        .gz files it stores as-is, and callers of such a storage expect the compressed bytes they wrote.
+        """
         try:
             with self.client.get_object(self.bucket, self.key(name)) as output:
-                if output.get("content_encoding") == "gzip":
+                if self.options.get("gzip") and output.get("content_encoding") == "gzip":
                     gzip_window_bits = zlib.MAX_WBITS | 16
                     decompressor = zlib.decompressobj(gzip_window_bits)
                     for chunk in output["body"]:
