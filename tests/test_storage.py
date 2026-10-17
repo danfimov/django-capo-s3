@@ -1,3 +1,4 @@
+import json
 import mimetypes
 import urllib.error
 import urllib.request
@@ -8,7 +9,9 @@ from typing import Any
 
 import pytest
 from capo_s3 import PostCondition, S3Client
+from capo_s3.errors import ServiceError
 from dirty_equals import IsNow, IsPartialDict
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import storages
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -131,6 +134,45 @@ def test_url_head_method_is_presigned(storage: S3Storage):
 def test_url_unsupported_method_is_rejected(storage: S3Storage):
     with pytest.raises(ValueError, match="only GET, HEAD and PUT"):
         storage.url("file.txt", http_method="DELETE")
+
+
+@pytest.mark.parametrize(
+    ("public", "expected"),
+    [
+        pytest.param(True, b"open data", id="public-bucket-is-readable"),
+        pytest.param(False, None, id="private-bucket-refuses-unsigned-requests"),
+    ],
+)
+def test_when_the_storage_is_anonymous_then_it_reads_only_what_the_bucket_policy_makes_public(
+    storage_factory: Callable[..., S3Storage], s3_client: S3Client, bucket: str, *, public: bool, expected: bytes | None
+):
+    s3_client.put_object(bucket, "data.csv", body=b"open data", content_length=9)
+    if public:
+        statement = {
+            "Effect": "Allow",
+            "Principal": {"AWS": ["*"]},
+            "Action": ["s3:GetObject", "s3:ListBucket"],
+            "Resource": [f"arn:aws:s3:::{bucket}", f"arn:aws:s3:::{bucket}/*"],
+        }
+        s3_client.put_bucket_policy(bucket, json.dumps({"Version": "2012-10-17", "Statement": [statement]}))
+    storage = storage_factory(anonymous=True, credentials=None)
+
+    if expected is None:
+        with pytest.raises(ServiceError):
+            storage.read_bytes("data.csv")
+    else:
+        assert storage.read_bytes("data.csv") == expected
+        assert storage.size("data.csv") == len(expected)
+        assert storage.listdir("") == ([], ["data.csv"])
+
+
+def test_when_the_storage_is_anonymous_then_urls_are_public_and_post_forms_are_refused(
+    storage_factory: Callable[..., S3Storage], bucket: str
+):
+    storage = storage_factory(anonymous=True, credentials=None)
+    assert storage.url("data.csv") == f"http://localhost:9000/{bucket}/data.csv"
+    with pytest.raises(ImproperlyConfigured, match="this storage is anonymous"):
+        storage.presigned_post("data.csv")
 
 
 IMAGES_ONLY: PostCondition = {"type": "starts-with", "field": "Content-Type", "prefix": "image/"}

@@ -90,7 +90,8 @@ through the storage, so send any extra headers you need through `fields`.
 
 ## Unsigned public URLs
 
-For a public bucket, set `querystring_auth=False` to get plain, cacheable URLs instead of presigned ones:
+For a public bucket, set `querystring_auth=False` to get plain, cacheable URLs instead of presigned ones (an
+[anonymous](configuration.md#reading-a-public-bucket-without-credentials) storage always returns these):
 
 ```python
 "OPTIONS": {"bucket": "my-bucket", "querystring_auth": False}

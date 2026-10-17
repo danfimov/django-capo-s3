@@ -11,6 +11,7 @@ from capo_s3 import (
     WebIdentityCredentialsProvider,
 )
 from django.core.exceptions import ImproperlyConfigured
+from django.test import override_settings
 from zapros import StdNetworkHandler
 
 import django_capo_s3
@@ -113,6 +114,35 @@ def test_http_handler_gets_none_when_no_builder_is_configured():
 
     assert isinstance(S3Storage(bucket="b", http_handler=build).http_handler, StdNetworkHandler)
     assert seen == [None]
+
+
+@pytest.mark.parametrize(
+    ("options", "aws_settings", "expected_error"),
+    [
+        pytest.param(
+            {"credentials": Credentials(access_key="k", secret_key="s")},  # noqa: S106
+            {},
+            "cannot be combined with credentials",
+            id="explicit-credentials-are-rejected",
+        ),
+        pytest.param({"session_profile": "dev"}, {}, "cannot be combined", id="explicit-profile-is-rejected"),
+        pytest.param(
+            {},
+            {"AWS_ACCESS_KEY_ID": "k", "AWS_SECRET_ACCESS_KEY": "s"},
+            None,
+            id="global-keys-for-other-storages-are-tolerated",
+        ),
+    ],
+)
+def test_when_an_anonymous_storage_is_also_given_credentials_then_only_its_own_options_make_it_fail(
+    options: S3StorageOptions, aws_settings: dict[str, str], expected_error: str | None
+):
+    with override_settings(**aws_settings):
+        if expected_error is None:
+            assert S3Storage(bucket="b", anonymous=True, **options).options["anonymous"]
+        else:
+            with pytest.raises(ImproperlyConfigured, match=expected_error):
+                S3Storage(bucket="b", anonymous=True, **options)
 
 
 def test_http_handler_must_be_a_callable():

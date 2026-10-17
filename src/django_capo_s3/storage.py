@@ -79,6 +79,10 @@ class S3Storage(Storage):
         if builder is not None and handler is None:
             msg = "http_client_builder does nothing without an http_handler to hand the builder to."
             raise ImproperlyConfigured(msg)
+        # Only the storage's own options count: global AWS_* keys meant for other storages must not break this one.
+        if merged.get("anonymous") and (options.get("credentials") or options.get("session_profile")):
+            msg = "anonymous sends requests unsigned, so it cannot be combined with credentials or session_profile."
+            raise ImproperlyConfigured(msg)
         self.options = merged
 
     @property
@@ -126,6 +130,7 @@ class S3Storage(Storage):
             force_path_style=self.options.get("force_path_style"),
             credentials=self.options.get("credentials"),
             credentials_provider=self._credentials_provider(),
+            anonymous=self.options.get("anonymous"),
             retry_max_attempts=self.options.get("retry_max_attempts"),
             http_handler=self.http_handler,
         )
@@ -370,11 +375,11 @@ class S3Storage(Storage):
         """Return a URL for an object.
 
         For a custom domain: a CloudFront-signed URL when a signing key is configured, otherwise a plain public URL.
-        Otherwise: a presigned S3 URL, unless signing is turned off. Pass expire to override the signed URL's lifetime,
-        http_method to sign a HEAD or PUT instead of a GET, and parameters to add response overrides such as
-        {"response_content_disposition": "attachment"} to a presigned GET, or upload headers such as
-        {"content_type": "image/png"} to a presigned PUT. On a CloudFront-signed URL the response overrides are
-        signed in too; the distribution must be configured to forward them to the S3 origin.
+        Otherwise: a presigned S3 URL, unless signing is turned off or the storage is anonymous. Pass expire to
+        override the signed URL's lifetime, http_method to sign a HEAD or PUT instead of a GET, and parameters to add
+        response overrides such as {"response_content_disposition": "attachment"} to a presigned GET, or upload
+        headers such as {"content_type": "image/png"} to a presigned PUT. On a CloudFront-signed URL the response
+        overrides are signed in too; the distribution must be configured to forward them to the S3 origin.
         """
         key = self.key(name)
         expires_in = expire if expire is not None else self.options["url_expire"]
@@ -387,7 +392,8 @@ class S3Storage(Storage):
                     public = f"{public}?{query}"
                 return signer.signed_url(public, expires_at=int(time.time()) + expires_in)
             return public
-        if self.options.get("querystring_auth"):
+        # An anonymous storage has no keys to presign with, so its URLs are the public ones.
+        if self.options.get("querystring_auth") and not self.options.get("anonymous"):
             return self._presigned(key, expires_in, parameters or {}, http_method)
         return build_public_url(self.options, key)
 
@@ -422,6 +428,9 @@ class S3Storage(Storage):
         conditions: "Sequence[PostCondition]" = (),
     ) -> PresignedPost:
         """Return an HTML form a browser can upload a file through straight to S3, without credentials."""
+        if self.options.get("anonymous"):
+            msg = "presigned_post() needs credentials to sign the policy with, and this storage is anonymous."
+            raise ImproperlyConfigured(msg)
         overridden = {field.lower() for field in fields or {}} | {
             condition["field"].lower() for condition in conditions if condition["type"] != "content-length-range"
         }
