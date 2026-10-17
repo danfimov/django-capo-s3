@@ -108,7 +108,9 @@ storage.url(
 )
 ```
 
-For a public bucket, set `"querystring_auth": False` in `OPTIONS` to get plain, cacheable URLs instead.
+For a public bucket, set `"querystring_auth": False` in `OPTIONS` to get plain, cacheable URLs instead. To read a
+public bucket on a machine with no AWS keys at all, set `"anonymous": True`: requests go out unsigned and no
+credentials are looked up.
 
 ### Browser uploads
 

@@ -40,6 +40,21 @@ Credentials are the exception worth stating plainly: leave them unset and capo r
 tooling does — environment variables, `~/.aws/credentials`, a container role, IRSA, SSO. You only need the
 `credentials` option (or the key settings below) when the keys live somewhere capo won't look.
 
+## Reading a public bucket without credentials
+
+Set `anonymous` to send every request unsigned, without looking for credentials at all — for public datasets or
+another team's public assets, on a machine that has no AWS keys:
+
+```python
+"OPTIONS": {"bucket": "open-data-bucket", "region": "us-east-1", "anonymous": True}
+```
+
+The bucket policy decides what such a storage can do: reads of a public-read bucket work, everything else gets
+`AccessDenied`. There is nothing to sign with, so `url()` returns plain public URLs (CloudFront signing still works,
+since it uses its own key) and `presigned_post()` raises `ImproperlyConfigured`. Passing `credentials` or
+`session_profile` alongside `anonymous` is rejected at startup; global `AWS_*` keys meant for your other storages are
+simply not used.
+
 ## Settings read for django-storages compatibility
 
 | Setting                                               | Option                                         |
@@ -80,7 +95,7 @@ last three.
 
 ## Options with no django-storages equivalent
 
-`skip_unchanged`, `default_content_type`, `multipart_threshold`, `multipart_chunksize`,
+`anonymous`, `skip_unchanged`, `default_content_type`, `multipart_threshold`, `multipart_chunksize`,
 `multipart_concurrency`, `connect_timeout`, `read_timeout`, `write_timeout`, `total_timeout`,
 `max_connections_per_host`, `retry_max_attempts`, `http_client_builder` and `http_handler` are set through
 `OPTIONS` only.

@@ -36,6 +36,7 @@ class S3StorageOptions(TypedDict, total=False):
     region: str | None
     force_path_style: bool
     credentials: Credentials | None
+    anonymous: bool
     querystring_auth: bool
     url_expire: int
     custom_domain: str | None
@@ -83,6 +84,7 @@ DEFAULTS: Final[S3StorageOptions] = {
     "region": None,
     "force_path_style": False,
     "credentials": None,
+    "anonymous": False,
     "querystring_auth": True,
     "url_expire": 3600,
     "custom_domain": None,
