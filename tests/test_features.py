@@ -1,3 +1,4 @@
+import gzip
 from collections.abc import Callable
 
 import pytest
@@ -96,6 +97,30 @@ def test_gzipped_object_must_still_be_openable_in_text_mode_and_yield_decoded_st
         content = handle.read()
     assert content == body
     assert isinstance(content, str)
+
+
+@pytest.mark.parametrize(
+    ("gzip_enabled", "decompressed"),
+    [
+        pytest.param(True, True, id="gzip-storage-decompresses"),
+        pytest.param(False, False, id="plain-storage-returns-the-stored-bytes"),
+    ],
+)
+def test_when_an_object_is_stored_with_gzip_content_encoding_then_only_a_gzip_storage_decompresses_it(
+    storage_factory: Callable[..., S3Storage],
+    bucket: str,
+    s3_client: S3Client,
+    gzip_enabled: bool,  # noqa: FBT001  # parametrized
+    decompressed: bool,  # noqa: FBT001  # parametrized
+):
+    # django-storages labels a .gz file it stores as-is with Content-Encoding: gzip, so this is how such objects look.
+    raw = b'{"line": 1}\n' * 100
+    compressed = gzip.compress(raw)
+    s3_client.put_object(bucket, "subtitles.jsonl.gz", body=compressed, content_encoding="gzip")
+    storage = storage_factory(gzip=gzip_enabled)
+
+    with storage.open("subtitles.jsonl.gz") as handle:
+        assert handle.read() == (raw if decompressed else compressed)
 
 
 def test_gzip_skips_non_matching_content_types(
