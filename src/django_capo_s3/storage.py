@@ -90,6 +90,16 @@ class S3Storage(Storage):
         """The target bucket name."""
         return self.options["bucket"]
 
+    @property
+    def location(self) -> str:
+        """The key prefix every file name is stored under, for code that builds object keys or URLs by hand."""
+        return self.options.get("location", "")
+
+    @property
+    def region(self) -> str | None:
+        """The region the client signs for, or None when it is left to the environment, for building sibling clients."""
+        return self.options.get("region")
+
     @cached_property
     def _clones(self) -> dict[tuple[str, str], Self]:
         return {}
