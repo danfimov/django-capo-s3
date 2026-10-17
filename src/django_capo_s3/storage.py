@@ -12,6 +12,8 @@ from capo_s3 import (
     CachedProvider,
     ChainedProvider,
     CredentialsProvider,
+    PostCondition,
+    PresignedPost,
     ProfileCredentialsProvider,
     S3Client,
     SsoCredentialsProvider,
@@ -46,7 +48,7 @@ from django_capo_s3.proxy import ProxyHandler
 from django_capo_s3.transfer import ObjectMeta, S3Uploader
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from capo_s3.types.object_identifier import ObjectIdentifier
 
@@ -409,6 +411,36 @@ class S3Storage(Storage):
             )
         msg = f"Unsupported http_method for url(): {http_method!r} (only GET, HEAD and PUT are supported)."
         raise ValueError(msg)
+
+    def presigned_post(
+        self,
+        name: str,
+        *,
+        expire: int | None = None,
+        max_size: int | None = None,
+        fields: "Mapping[str, str] | None" = None,
+        conditions: "Sequence[PostCondition]" = (),
+    ) -> PresignedPost:
+        """Return an HTML form a browser can upload a file through straight to S3, without credentials."""
+        overridden = {field.lower() for field in fields or {}} | {
+            condition["field"].lower() for condition in conditions if condition["type"] != "content-length-range"
+        }
+        pinned: dict[str, str] = {}
+        if "content-type" not in overridden:
+            pinned["Content-Type"] = self.content_type(name)
+        acl = self.options.get("default_acl")
+        if acl and "acl" not in overridden:
+            pinned["acl"] = acl
+        policy: list[PostCondition] = list(conditions)
+        if max_size is not None:
+            policy.append({"type": "content-length-range", "min": 0, "max": max_size})
+        return self.client.presign_post(
+            self.bucket,
+            self.key(name),
+            expires_in=expire if expire is not None else self.options["url_expire"],
+            fields={**pinned, **(fields or {})},
+            conditions=policy,
+        )
 
     @override
     def listdir(self, path: str) -> tuple[list[str], list[str]]:

@@ -95,15 +95,15 @@ wheels = [
 
 [[package]]
 name = "capo-s3"
-version = "0.15.0"
+version = "0.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "zapros" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/20/33/891a89331363ab751dd9d16b8d98e84d959a066000c08d15eb69dd7be580/capo_s3-0.15.0.tar.gz", hash = "sha256:4346b5bafa76369c250f5534f55944bcd32e70bb158f955ad10c1658af4225a1", size = 619454, upload-time = "2026-08-26T19:58:26.121Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/13/7001af2227a52dd775bcee1f3f914bbd2c682ea79db74bffe6ddde1fbff2/capo_s3-0.24.0.tar.gz", hash = "sha256:17e2d94dba56f78ad8e51f6e30f62eba746e8fa35358da9cb3fae4c50c7cbae7", size = 641335, upload-time = "2026-10-12T16:31:38.498Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/7d/faec005b8628a6cefc5d892c2df01569db73bc0e852315ef3b72d1f1d04f/capo_s3-0.15.0-py3-none-any.whl", hash = "sha256:31b37af42230734c11d7e52d19d4f8799cfa55ac4667b232957fc0fa9ed083f9", size = 1186735, upload-time = "2026-08-26T19:58:24.691Z" },
+    { url = "https://files.pythonhosted.org/packages/79/53/093fc437acd134fbf8f7fd7b8e58b53ef405e177780e52a93fc621b5c5b9/capo_s3-0.24.0-py3-none-any.whl", hash = "sha256:6e0569b03974f24e7636e99064555701ad5e8095736f0ce6bd612eb48726ff0f", size = 1210107, upload-time = "2026-10-12T16:31:37.154Z" },
 ]
 
 [[package]]
@@ -384,7 +384,7 @@ types = [
 
 [package.metadata]
 requires-dist = [
-    { name = "capo-s3", specifier = ">=0.15.0" },
+    { name = "capo-s3", specifier = ">=0.24.0" },
     { name = "cryptography", specifier = ">=50.0.1" },
     { name = "django", specifier = ">=5.2" },
     { name = "typing-extensions", specifier = ">=4.16" },
@@ -1332,21 +1332,21 @@ wheels = [
 
 [[package]]
 name = "zapros"
-version = "0.17.0"
+version = "0.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h11" },
     { name = "pywhatwgurl" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/d3/049f59174eec9fa72ff0214e17352b6e5b3012cf24361a631758d2bf69e1/zapros-0.17.0.tar.gz", hash = "sha256:d0a4ab10246ae1431840a00146aa791780b10e98b2a80811858946dbb695f870", size = 960860, upload-time = "2026-08-26T18:29:52.538Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/3b/e25de2470d0980d4b34f23817636311b338b5241b2e66532ed0344f4dff5/zapros-0.21.0.tar.gz", hash = "sha256:dadfd9194947a2432668f315cc8e5ec15831308df3c47cfcb936a688629ba523", size = 1000820, upload-time = "2026-10-12T15:17:15.174Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4d/13/9a0a85328dab1348d56521315f671eee736b10ee2ba5148f80fc80bb2c5d/zapros-0.17.0-py3-none-any.whl", hash = "sha256:e0190405f8981ec77594f0a53d52cbee0dd86985411d20a79b1225d39c77f584", size = 122019, upload-time = "2026-08-26T18:29:50.656Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/08/afe4f13d32c71809d8fa21185e3a5e88865659146209b446e5a8842f78be/zapros-0.21.0-py3-none-any.whl", hash = "sha256:060fefb2b80431d989bde2d884a6f1706335ea47d0749a24815d26b2b1667d5a", size = 123627, upload-time = "2026-10-12T15:17:13.531Z" },
 ]
 
 [package.optional-dependencies]
 pyreqwest = [
-    { name = "pyreqwest" },
+    { name = "pyreqwest", marker = "python_full_version < '3.15'" },
 ]
 
 [[package]]
