@@ -16,7 +16,8 @@ client instead of boto3 — a drop-in alternative to `django-storages[s3]`.
 - **URLs** — presigned URLs by default (with per-call `expire` and response overrides like `response_content_disposition`),
   unsigned public URLs, or CloudFront-signed URLs for a custom domain.
 - **Uploads** — streaming single-`PUT` uploads that automatically switch to a concurrent multipart transfer above a
-  configurable threshold.
+  configurable threshold, plus presigned POST forms for browsers to upload straight to the bucket under a size and
+  content-type policy.
 - **Transparent gzip** — eligible content types are stored compressed and decompressed on read.
 - **Server-side encryption, storage class, cache-control, metadata, ...** — via `object_parameters`, passed straight
   through to the underlying request.
@@ -108,6 +109,21 @@ storage.url(
 ```
 
 For a public bucket, set `"querystring_auth": False` in `OPTIONS` to get plain, cacheable URLs instead.
+
+### Browser uploads
+
+`presigned_post()` returns a form a browser can upload through straight to S3, with the limits enforced by S3 itself:
+
+```python
+post = storage.presigned_post(
+    "avatars/42.png",
+    max_size=5 * 1024 * 1024,
+    conditions=[{"type": "starts-with", "field": "Content-Type", "prefix": "image/"}],
+)
+# POST post["fields"] to post["url"] as multipart/form-data, with the file as the last field.
+```
+
+See [Download URLs](docs/tutorial/download_urls.md#presigned-post-forms) for the details.
 
 ### Bulk delete
 

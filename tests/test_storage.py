@@ -1,9 +1,13 @@
 import mimetypes
+import urllib.error
+import urllib.request
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import pytest
-from capo_s3 import S3Client
+from capo_s3 import PostCondition, S3Client
 from dirty_equals import IsNow, IsPartialDict
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import storages
@@ -127,6 +131,103 @@ def test_url_head_method_is_presigned(storage: S3Storage):
 def test_url_unsupported_method_is_rejected(storage: S3Storage):
     with pytest.raises(ValueError, match="only GET, HEAD and PUT"):
         storage.url("file.txt", http_method="DELETE")
+
+
+IMAGES_ONLY: PostCondition = {"type": "starts-with", "field": "Content-Type", "prefix": "image/"}
+
+
+@pytest.mark.parametrize(
+    ("name", "options", "presign", "sent", "body", "expected_content_type"),
+    [
+        pytest.param("photo.png", {}, {}, {}, b"png", "image/png", id="content-type-resolved-like-save"),
+        pytest.param(
+            "export",
+            {},
+            {"fields": {"Content-Type": "text/csv"}},
+            {},
+            b"a,b",
+            "text/csv",
+            id="content-type-from-fields",
+        ),
+        pytest.param(
+            "photo.png", {"location": "media"}, {}, {}, b"png", "image/png", id="lands-under-the-location-prefix"
+        ),
+        pytest.param(
+            "avatar",
+            {},
+            {"conditions": [IMAGES_ONLY]},
+            {"Content-Type": "image/webp"},
+            b"webp",
+            "image/webp",
+            id="uploader-picks-an-allowed-content-type",
+        ),
+        pytest.param(
+            "avatar",
+            {},
+            {"conditions": [IMAGES_ONLY]},
+            {"Content-Type": "text/html"},
+            b"<script>",
+            None,
+            id="disallowed-content-type-is-rejected",
+        ),
+        pytest.param("blob", {}, {"max_size": 4}, {}, b"1234", "application/octet-stream", id="exactly-max-size"),
+        pytest.param("blob", {}, {"max_size": 4}, {}, b"12345", None, id="over-max-size-is-rejected"),
+    ],
+)
+def test_when_a_browser_posts_the_presigned_form_then_s3_enforces_its_policy(  # noqa: PLR0913, PLR0917  # parametrized
+    storage_factory: Callable[..., S3Storage],
+    name: str,
+    options: S3StorageOptions,
+    presign: dict[str, Any],
+    sent: dict[str, str],
+    body: bytes,
+    expected_content_type: str | None,
+):
+    storage = storage_factory(**options)
+    post = storage.presigned_post(name, **presign)
+    boundary = uuid.uuid4().hex
+    # S3 ignores everything after the file field, so it has to come last.
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"\r\n\r\n{value}\r\n'.encode()
+        for field, value in {**post["fields"], **sent}.items()
+    ]
+    parts.append(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="upload"\r\n\r\n'.encode()
+        + body
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
+    request = urllib.request.Request(  # noqa: S310  # the URL is the local MinIO endpoint, never user input
+        post["url"], data=b"".join(parts), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    )
+    try:
+        with urllib.request.urlopen(request) as response:  # noqa: S310  # same local endpoint as above
+            status = response.status
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+
+    if expected_content_type is None:
+        assert 400 <= status < 500
+        assert not storage.exists(name)
+    else:
+        assert status == 204
+        assert storage.read_bytes(name) == body
+        assert storage.client.head_object(storage.bucket, storage.key(name))["content_type"] == expected_content_type
+
+
+@pytest.mark.parametrize(
+    ("conditions", "expected_acl"),
+    [
+        pytest.param([], "public-read", id="default-acl-pinned"),
+        pytest.param(
+            [{"type": "starts-with", "field": "acl", "prefix": ""}], None, id="condition-on-acl-leaves-it-to-uploader"
+        ),
+    ],
+)
+def test_when_a_default_acl_is_configured_then_the_presigned_form_carries_it_unless_a_condition_frees_it(
+    storage_factory: Callable[..., S3Storage], conditions: list[PostCondition], expected_acl: str | None
+):
+    storage = storage_factory(default_acl="public-read")
+    assert storage.presigned_post("photo.png", conditions=conditions)["fields"].get("acl") == expected_acl
 
 
 def test_listdir_splits_dirs_and_files(storage: S3Storage):

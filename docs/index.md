@@ -21,6 +21,8 @@ A Django file storage backend for S3-compatible object stores, built on the
   so an unchanged deploy costs no uploads.
 - **Streaming uploads** — single-`PUT` uploads that switch to a concurrent multipart transfer above a
   configurable threshold; transparent gzip for eligible content types.
+- **Browser uploads** — `presigned_post()` forms that upload straight to the bucket, with the size and content type
+  enforced by S3 through a signed policy.
 - **Region and bucket routing** — `storage.for_region("eu-central-1")` and `storage.for_bucket("archive")`
   clone the storage at runtime, cached per value so each reuses one client and connection pool.
 - **Any S3-compatible provider** — AWS, MinIO, DigitalOcean Spaces, Backblaze B2, Cloudflare R2, Yandex,

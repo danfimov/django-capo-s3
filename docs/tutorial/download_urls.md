@@ -40,6 +40,54 @@ put_url = storage.url("uploads/photo.jpg", http_method="PUT", expire=300)
 
 `http_method="HEAD"` is supported too.
 
+### Presigned POST forms
+
+A presigned `PUT` trusts whatever the client sends. `presigned_post()` instead signs a policy that S3 checks on
+upload, so the browser can't send a 2 GB file or an HTML page where you expected an avatar:
+
+```python
+post = storage.presigned_post(
+    "avatars/42.png",
+    expire=300,                # defaults to url_expire
+    max_size=5 * 1024 * 1024,  # S3 rejects anything larger
+)
+post["url"]     # where the form posts to
+post["fields"]  # hidden fields to send ahead of the file
+```
+
+The browser sends every entry of `fields` and then the file itself, last, under the name `file`:
+
+```html
+<form action="{{ post.url }}" method="post" enctype="multipart/form-data">
+  {% for name, value in post.fields.items %}
+    <input type="hidden" name="{{ name }}" value="{{ value }}">
+  {% endfor %}
+  <input type="file" name="file">
+  <button>Upload</button>
+</form>
+```
+
+The object lands at the same key `save()` would use (the `location` prefix included), and the form pins the
+`Content-Type` resolved the way `save()` resolves it, plus `default_acl` when one is set. Pass `fields` to pin
+something else — a `Content-Type` there replaces the resolved one:
+
+```python
+storage.presigned_post("exports/june", fields={"Content-Type": "text/csv", "Cache-Control": "no-cache"})
+```
+
+To let the uploader choose within limits, add `conditions`. A condition on `Content-Type` (or `acl`) turns off
+the default for that field, so the browser's own value goes through — as long as it matches:
+
+```python
+storage.presigned_post(
+    "avatars/42",
+    conditions=[{"type": "starts-with", "field": "Content-Type", "prefix": "image/"}],
+)
+```
+
+`object_parameters` and gzip are not applied to these uploads: the bytes go from the browser to S3 without passing
+through the storage, so send any extra headers you need through `fields`.
+
 ## Unsigned public URLs
 
 For a public bucket, set `querystring_auth=False` to get plain, cacheable URLs instead of presigned ones:
