@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -1086,15 +1086,15 @@ wheels = [
 
 [[package]]
 name = "pytest-memray"
-version = "1.10.0"
+version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "memray" },
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/61/d0ab0418ea7a2494a3a020a4bc388011b59b820e8335797cdc6489cfd9fe/pytest_memray-1.10.0.tar.gz", hash = "sha256:38f1068aa8562887d452ae14f77509f138be1acc74542dd5fc41e74f651cf932", size = 246123, upload-time = "2026-08-07T22:07:28.401Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/71/67/4d8d29f9edc0bd3a4ee2458197bc72cb8bac34beb5e3fee2d1a542c3252c/pytest_memray-1.11.0.tar.gz", hash = "sha256:d40a7914f63cf53d9cd3d1ed5bdaeb9039dde4821d80054fd678f3d4f2c1f13d", size = 246383, upload-time = "2026-09-17T16:42:52.198Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/d7/9e6d28d95cfe6a1f3643c46b06266f2eb2ea711b0bb6ef1b0f1697a19c2f/pytest_memray-1.10.0-py3-none-any.whl", hash = "sha256:eecdbad5c4df3c385892b1cfdde48266f21ae601a44c4fe6557b781d7d409b95", size = 20122, upload-time = "2026-08-07T22:07:27.269Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/93/880c259592072b43e416cca0ecd0ed8d9b6413700554997c78b39c946f39/pytest_memray-1.11.0-py3-none-any.whl", hash = "sha256:33e45b77e984459c3792ef111c2142d9ca960c874c075f62349fdcee91509de6", size = 20344, upload-time = "2026-09-17T16:42:50.73Z" },
 ]
 
 [[package]]
@@ -1368,7 +1368,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/66/09/b9ed4bec7dd871474b8b9c932828e9fa058f4d48e287fb8c773ccb1f638a/zensical-0.0.59-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:2a39a413fb38f3cc1572c49e8196e30537b75b53fe9d93180d419db5c8db0e68", size = 14169206, upload-time = "2026-09-03T18:40:51.289Z" },
     { url = "https://files.pythonhosted.org/packages/06/3b/a7ab8573d40e780dfbc316c24191170f898e4d7d158d06e19465260c044a/zensical-0.0.59-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:b733edf61722a71d184c3899f035390b27915773fc77599987da934dd87fb76b", size = 13916290, upload-time = "2026-09-03T18:40:54.146Z" },
     { url = "https://files.pythonhosted.org/packages/e4/e8/92c5a80fd3701253660f5c2df8a938c6e6f1fef2218df9830b9d596ef237/zensical-0.0.59-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:973322d6cba380dae7acbefce84b74f67f8610435ba97c3557f5f25b6e49ed40", size = 14188906, upload-time = "2026-09-03T18:40:56.484Z" },
-    { url = "https://files.pythonhosted.org/packages/5d/16/f898fa52c525f4241fd7709638b10e185b2bca2bc6e34f5dd5741cbe7b8e/zensical-0.0.59-cp310-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:ef84401d8ad34835b5f7d31950f549758fa610d65f20a0cff8d5d71343112644", size = 14211088, upload-time = "2026-09-03T18:40:58.754Z" },
     { url = "https://files.pythonhosted.org/packages/09/50/084f74d4b98d553c566d484bb68e2bd472484027329e4f32e7334d0848ee/zensical-0.0.59-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0331651ffde09bb48904b428de3efa009290434760dbd5ec69b50c05a682a59c", size = 14466906, upload-time = "2026-09-03T18:41:01.305Z" },
     { url = "https://files.pythonhosted.org/packages/c2/bf/3472a57f8c816656fe5f8dde9fae1f5380e97ca5c2bda0b37614f61f5d62/zensical-0.0.59-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:f16ec02bb8582ccdf631db2bedb0a0d19901b6f3f22d9fc8aad97ea61d547746", size = 14363960, upload-time = "2026-09-03T18:41:03.961Z" },
     { url = "https://files.pythonhosted.org/packages/83/f2/7193e2ae24636d63cc4e9e261acabacbc56ea8e48201b90cb737d9c56147/zensical-0.0.59-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:6d61b8db3e198f8b735186be029842ee829be66ca29b6797084948b0eec1c2cb", size = 14695910, upload-time = "2026-09-03T18:41:06.122Z" },
