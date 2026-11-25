@@ -5,7 +5,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.utils import format_datetime
-from typing import TYPE_CHECKING, Self, Unpack
+from types import FunctionType, MethodType
+from typing import TYPE_CHECKING, Any, Self, Unpack
 from unittest.mock import patch
 from urllib.parse import parse_qsl, unquote
 
@@ -27,7 +28,7 @@ from zapros.mock import MockRouter
 
 from django_capo_s3.core import S3StorageOptions
 from django_capo_s3.storage import S3Storage
-from django_capo_s3.testing.calls import S3Call, S3Calls, aread_body, read_body
+from django_capo_s3.testing.calls import S3Call, S3Calls, SigV4, aread_body, read_body
 from django_capo_s3.testing.responses import not_found, s3_error, xml_response
 
 if TYPE_CHECKING:
@@ -323,6 +324,10 @@ class FakeS3(BaseHandler, AsyncBaseHandler):
         configured without a region would fail to resolve an endpoint at all — both are things the deployed
         process gets from its surroundings and a test has no business inheriting.
 
+        Another HTTP mock entered before this block, zapros' mock_http() for one, keeps the requests that are not
+        for S3, so a test can stub an unrelated API next to the bucket. With nothing else installed the service
+        answers everything itself, so a stray request never reaches the network.
+
         Leaving the block without an exception verifies the mocks mounted on the router, so an expectation
         such as Mock.given(...).once() fails the test when it went unmet — the same contract zapros' own
         mock_http() gives. A canned response's times= is a ceiling, not an expectation, and is not verified.
@@ -336,11 +341,27 @@ class FakeS3(BaseHandler, AsyncBaseHandler):
         # capo memoizes the ambient region and endpoint for the whole process on first use, so the pinned
         # environment only reaches a client if whatever an earlier test resolved is thrown away first.
         load_aws_settings.cache_clear()
+        previous_handle = StdNetworkHandler.handle
+        previous_ahandle = AsyncStdNetworkHandler.ahandle
+        # Read on entry rather than at import: this module may first be imported while another mock is active.
+        forward_sync = not _is_transport_own(previous_handle, StdNetworkHandler)
+        forward_async = not _is_transport_own(previous_ahandle, AsyncStdNetworkHandler)
+
+        def handle(transport: StdNetworkHandler, request: Request) -> Response:
+            if forward_sync and not _addresses_s3(request):
+                return _bind(previous_handle, transport)(request)  # type: ignore[no-any-return]
+            return self.handle(request)
+
+        async def ahandle(transport: AsyncStdNetworkHandler, request: Request) -> Response:
+            if forward_async and not _addresses_s3(request):
+                return await _bind(previous_ahandle, transport)(request)  # type: ignore[no-any-return]
+            return await self.ahandle(request)
+
         try:
             with (
                 patch.dict(os.environ, environment),
-                patch.object(StdNetworkHandler, "handle", self.handle),
-                patch.object(AsyncStdNetworkHandler, "ahandle", self.ahandle),
+                patch.object(StdNetworkHandler, "handle", handle),
+                patch.object(AsyncStdNetworkHandler, "ahandle", ahandle),
             ):
                 yield self
         finally:
@@ -679,6 +700,39 @@ def _operation(method: str, key: str, params: Mapping[str, str]) -> str:
         if operation:
             return operation
     return f"Unknown{method.title()}"
+
+
+def _addresses_s3(request: Request) -> bool:
+    """Tell a request for S3 from other traffic: by the service it is signed for, then by the shape of the host.
+
+    The signature settles it for every signed request, wherever the endpoint is, MinIO included. An unsigned one
+    only has the host to go on, so an anonymous request to a custom endpoint passes for other traffic.
+    """
+    authorization = request.headers.get("authorization")
+    signature = SigV4.parse(authorization) if authorization else None
+    if signature is not None:
+        return signature.service == "s3"
+    credential = dict(parse_qsl(request.url.search.lstrip("?"))).get("X-Amz-Credential")
+    if credential is not None:  # a presigned URL: access key / date / region / service / aws4_request
+        return credential.split("/")[3:4] == ["s3"]
+    host = request.url.hostname or ""
+    return any(label == "s3" or label.startswith("s3-") for label in host.split("."))
+
+
+def _is_transport_own(method: object, transport_class: type) -> bool:
+    """Whether a transport method is still the one zapros defined, rather than something a mock patched in."""
+    return (
+        isinstance(method, FunctionType) and method.__qualname__ == f"{transport_class.__qualname__}.{method.__name__}"
+    )
+
+
+def _bind(handler: Callable[..., Any], transport: object) -> Callable[..., Any]:
+    """Get the method a transport would call, whatever was patched onto its class.
+
+    A plain function still needs the transport as self, while a bound method, which is what mock_http() patches
+    in, carries its own.
+    """
+    return MethodType(handler, transport) if isinstance(handler, FunctionType) else handler
 
 
 def _object_headers(headers: Mapping[str, str]) -> dict[str, str]:

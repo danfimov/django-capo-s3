@@ -299,6 +299,31 @@ Requests are recorded either way, so `s3.calls` still sees everything. Leaving a
 verifies what you mounted, so a `.once()` that never fired fails the test — `s3.fail(..., times=n)` is a
 ceiling rather than an expectation and is not verified.
 
+## Next to other HTTP mocks
+
+zapros' `mock_http()` and the service both patch the same transport, so a test that also stubs some other API
+needs them in the right order. Enter the other mock first, `mock_s3()` inside it, and the service keeps only the
+requests meant for S3, handing everything else back to the mock that was already there:
+
+```python
+from zapros import Response
+from zapros.matchers import host
+from zapros.mock import Mock, mock_http
+
+with mock_http() as router, mock_s3() as s3:
+    router.add(Mock.given(host("api.example.com")).respond(Response(status=200, json={"ok": True})))
+
+    storage.save("report.csv", ContentFile(b"a,b"))  # served by the service
+    notify_partner_api()  # answered by the router
+```
+
+A request counts as S3's when it is signed for S3, wherever its endpoint is, or when its host looks like an S3
+one. That leaves out only an anonymous request to a custom endpoint, which goes to the other mock. With pytest
+fixtures, the same order means requesting `s3` after the fixture that enters the other mock; autouse fixtures
+are set up first, so those already come before it. The other way round does not work: `mock_http()` raises on
+every request it has no mock for, S3's included. With no other mock installed the service still answers
+everything itself, so a stray request never reaches the network.
+
 ## Not testing S3 at all
 
 Plenty of tests touch storage only because the code under test writes a file, and have nothing to say about
