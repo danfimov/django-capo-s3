@@ -122,8 +122,8 @@ storage.save("style.css", ContentFile(body))
 stored = s3.stored("style.css")
 assert stored.content_encoding == "gzip"
 assert stored.content_type == "text/css"
-assert stored.size < len(body)                 # smaller at rest than what went in
-assert gzip.decompress(stored.data) == body    # and it round-trips
+assert stored.size < len(body)  # smaller at rest than what went in
+assert gzip.decompress(stored.data) == body  # and it round-trips
 ```
 
 |                              | Gives you                            |
