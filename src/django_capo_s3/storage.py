@@ -14,6 +14,7 @@ from capo_s3 import (
     CredentialsProvider,
     PostCondition,
     PresignedPost,
+    ProcessCredentialsProvider,
     ProfileCredentialsProvider,
     S3Client,
     SsoCredentialsProvider,
@@ -149,9 +150,10 @@ class S3Storage(Storage):
         """Build the provider for a named AWS profile, or None so capo uses its default resolution chain.
 
         For a named profile we mirror the relevant slice of capo's default chain (assume-role, web-identity,
-        SSO, then static keys) bound to that profile, wrapped in CachedProvider. That way a profile backed by
-        role_arn / web_identity_token_file / SSO resolves and auto-refreshes on expiry — a bare
-        ProfileCredentialsProvider only reads static keys and would fail outright on those profiles.
+        SSO, static keys, then credential_process) bound to that profile, wrapped in CachedProvider. That way a
+        profile backed by role_arn / web_identity_token_file / SSO / a credential_process helper such as aws-vault
+        resolves and auto-refreshes on expiry — a bare ProfileCredentialsProvider only reads static keys and would
+        fail outright on those profiles.
         """
         if self.options.get("credentials") is not None:
             return None
@@ -165,6 +167,7 @@ class S3Storage(Storage):
                 WebIdentityCredentialsProvider(client, profile),
                 SsoCredentialsProvider(client, profile),
                 ProfileCredentialsProvider(profile=profile),
+                ProcessCredentialsProvider(profile=profile),
             )
         )
         return cast("CredentialsProvider", chain)  # capo's public credentials_provider param is typed narrower

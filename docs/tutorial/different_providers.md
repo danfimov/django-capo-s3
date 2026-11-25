@@ -26,7 +26,7 @@ You can pass credentials three ways:
     # ... "credentials": CREDENTIALS
     ```
 
-- **A named AWS profile** — `"session_profile": "my-profile"` (resolves `role_arn` / SSO / web-identity too).
+- **A named AWS profile** — `"session_profile": "my-profile"` (resolves `role_arn` / SSO / web-identity / `credential_process` too).
 
 Only `bucket` is required in `OPTIONS`; everything else falls back to a default.
 
