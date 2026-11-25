@@ -8,9 +8,9 @@ from capo_s3.errors import UnknownServiceError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from zapros import Response
-from zapros.matchers import method
-from zapros.mock import Mock
+from zapros import AsyncClient, Client, Response
+from zapros.matchers import host, method
+from zapros.mock import Mock, mock_http
 
 from django_capo_s3.static import S3ManifestStaticStorage
 from django_capo_s3.storage import S3Storage
@@ -437,6 +437,48 @@ def test_when_an_async_client_is_used_then_it_is_served_by_the_same_service(s3: 
     assert size == len(b"written by the async client")
     assert s3["async.txt"] == b"written by the async client"
     assert s3.calls.trace == [("PutObject", "async.txt"), ("HeadObject", "async.txt")]
+
+
+def test_when_another_mock_is_entered_first_then_requests_not_for_s3_reach_it():
+    with mock_http() as router, mock_s3() as s3:
+        _ = router.add(Mock.given(host("api.example.com")).respond(Response(status=200, json={"ok": True})))
+        s3.storage(location="media").save("report.csv", ContentFile(b"a,b"))
+        with Client() as client:
+            response = client.get("https://api.example.com/status")
+
+    assert response.status == 200
+    assert s3["media/report.csv"] == b"a,b"
+    assert s3.calls.operations == ["PutObject"]  # the other API's request is not the service's to record
+
+
+def test_when_another_mock_is_entered_first_then_async_requests_not_for_s3_reach_it():
+    async def exercise(bucket: str) -> int:
+        async with AsyncS3Client() as s3_client:
+            _ = await s3_client.put_object(bucket, "async.txt", body=b"x")
+        async with AsyncClient() as client:
+            return (await client.get("https://api.example.com/status")).status
+
+    with mock_http() as router, mock_s3() as s3:
+        _ = router.add(Mock.given(host("api.example.com")).respond(Response(status=200)))
+        status = asyncio.run(exercise(s3.bucket))
+
+    assert status == 200
+    assert s3.calls.trace == [("PutObject", "async.txt")]
+
+
+def test_when_another_mock_is_entered_first_then_a_signed_request_to_a_custom_endpoint_stays_with_the_service():
+    with mock_http(), mock_s3() as s3:
+        storage = s3.storage(endpoint="http://minio.internal:9000", force_path_style=True, location="media")
+        storage.save("report.csv", ContentFile(b"a,b"))
+
+    assert s3["media/report.csv"] == b"a,b"
+
+
+def test_when_nothing_else_is_installed_then_a_request_not_for_s3_is_answered_without_the_network():
+    with mock_s3(), Client() as client:
+        response = client.get("https://api.example.com/status")
+
+    assert response.status == 400
 
 
 def test_when_a_storage_comes_from_settings_then_its_requests_are_still_caught():
