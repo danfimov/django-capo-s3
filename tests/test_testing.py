@@ -442,7 +442,8 @@ def test_when_an_async_client_is_used_then_it_is_served_by_the_same_service(s3: 
 def test_when_another_mock_is_entered_first_then_requests_not_for_s3_reach_it():
     with mock_http() as router, mock_s3() as s3:
         _ = router.add(Mock.given(host("api.example.com")).respond(Response(status=200, json={"ok": True})))
-        s3.storage(location="media").save("report.csv", ContentFile(b"a,b"))
+        # Built without s3.storage(), which would hand the service over directly and skip the patched transport.
+        S3Storage(bucket=s3.bucket, location="media").save("report.csv", ContentFile(b"a,b"))
         with Client() as client:
             response = client.get("https://api.example.com/status")
 
@@ -468,7 +469,9 @@ def test_when_another_mock_is_entered_first_then_async_requests_not_for_s3_reach
 
 def test_when_another_mock_is_entered_first_then_a_signed_request_to_a_custom_endpoint_stays_with_the_service():
     with mock_http(), mock_s3() as s3:
-        storage = s3.storage(endpoint="http://minio.internal:9000", force_path_style=True, location="media")
+        storage = S3Storage(
+            bucket=s3.bucket, endpoint="http://minio.internal:9000", force_path_style=True, location="media"
+        )
         storage.save("report.csv", ContentFile(b"a,b"))
 
     assert s3["media/report.csv"] == b"a,b"

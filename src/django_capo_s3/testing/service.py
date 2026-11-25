@@ -38,10 +38,6 @@ DEFAULT_BUCKET = "test-bucket"
 DEFAULT_REGION = "us-east-1"
 DEFAULT_CREDENTIALS = Credentials(access_key="test-access-key", secret_key="test-secret-key")  # noqa: S106
 
-# The transport's own methods, so installed() can tell an untouched transport from one another mock has patched.
-_NETWORK_HANDLE = StdNetworkHandler.handle
-_NETWORK_AHANDLE = AsyncStdNetworkHandler.ahandle
-
 # Signing and framing headers: they say nothing about the object, so they are not stored with it.
 _TRANSIENT_HEADERS = frozenset(
     {
@@ -347,14 +343,17 @@ class FakeS3(BaseHandler, AsyncBaseHandler):
         load_aws_settings.cache_clear()
         previous_handle = StdNetworkHandler.handle
         previous_ahandle = AsyncStdNetworkHandler.ahandle
+        # Read on entry rather than at import: this module may first be imported while another mock is active.
+        forward_sync = not _is_transport_own(previous_handle, StdNetworkHandler)
+        forward_async = not _is_transport_own(previous_ahandle, AsyncStdNetworkHandler)
 
         def handle(transport: StdNetworkHandler, request: Request) -> Response:
-            if previous_handle is not _NETWORK_HANDLE and not _addresses_s3(request):
+            if forward_sync and not _addresses_s3(request):
                 return _bind(previous_handle, transport)(request)  # type: ignore[no-any-return]
             return self.handle(request)
 
         async def ahandle(transport: AsyncStdNetworkHandler, request: Request) -> Response:
-            if previous_ahandle is not _NETWORK_AHANDLE and not _addresses_s3(request):
+            if forward_async and not _addresses_s3(request):
                 return await _bind(previous_ahandle, transport)(request)  # type: ignore[no-any-return]
             return await self.ahandle(request)
 
@@ -718,6 +717,13 @@ def _addresses_s3(request: Request) -> bool:
         return credential.split("/")[3:4] == ["s3"]
     host = request.url.hostname or ""
     return any(label == "s3" or label.startswith("s3-") for label in host.split("."))
+
+
+def _is_transport_own(method: object, transport_class: type) -> bool:
+    """Whether a transport method is still the one zapros defined, rather than something a mock patched in."""
+    return (
+        isinstance(method, FunctionType) and method.__qualname__ == f"{transport_class.__qualname__}.{method.__name__}"
+    )
 
 
 def _bind(handler: Callable[..., Any], transport: object) -> Callable[..., Any]:
