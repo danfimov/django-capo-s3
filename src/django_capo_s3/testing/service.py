@@ -460,7 +460,11 @@ class FakeS3(BaseHandler, AsyncBaseHandler):
                         continue
                     canned.remaining -= 1
                 errors.append(
-                    {"key": key, "code": canned.error_code, "message": canned.error_message or canned.error_code}
+                    {
+                        "key": key,
+                        "code": canned.error_code,
+                        "message": canned.error_message if canned.error_message is not None else canned.error_code,
+                    }
                 )
                 break
             else:

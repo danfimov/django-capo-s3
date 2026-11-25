@@ -356,17 +356,27 @@ def test_when_a_bulk_delete_refusal_runs_out_then_the_retry_deletes_the_key(s3: 
     assert s3.keys() == []
 
 
-def test_when_a_quiet_bulk_delete_is_refused_then_only_the_refusal_comes_back(s3: FakeS3, s3_storage: S3Storage):
+@pytest.mark.parametrize(
+    ("message", "expected_message"),
+    [
+        pytest.param("Access Denied", "Access Denied", id="given-message"),
+        pytest.param("", "", id="empty-message-is-kept"),
+        pytest.param(None, "AccessDenied", id="no-message-falls-back-to-the-code"),
+    ],
+)
+def test_when_a_quiet_bulk_delete_is_refused_then_only_the_refusal_comes_back(
+    s3: FakeS3, s3_storage: S3Storage, message: str | None, expected_message: str
+):
     s3.put("media/a.txt", b"x")
     s3.put("media/b.txt", b"x")
-    s3.fail("DeleteObjects", key="media/a.txt", code="AccessDenied", message="Access Denied")
+    s3.fail("DeleteObjects", key="media/a.txt", code="AccessDenied", message=message)
 
     result = s3_storage.client.delete_objects(
         s3.bucket, {"objects": [{"key": "media/a.txt"}, {"key": "media/b.txt"}], "quiet": True}
     )
 
     assert "deleted" not in result
-    assert result["errors"] == [{"key": "media/a.txt", "code": "AccessDenied", "message": "Access Denied"}]
+    assert result["errors"] == [{"key": "media/a.txt", "code": "AccessDenied", "message": expected_message}]
     assert s3.keys() == ["media/a.txt"]
 
 
