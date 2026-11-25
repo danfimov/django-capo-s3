@@ -1,4 +1,7 @@
+import shlex
+import sys
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from capo_s3 import (
@@ -6,6 +9,7 @@ from capo_s3 import (
     CachedProvider,
     ChainedProvider,
     Credentials,
+    ProcessCredentialsProvider,
     ProfileCredentialsProvider,
     SsoCredentialsProvider,
     WebIdentityCredentialsProvider,
@@ -46,6 +50,7 @@ def test_session_profile_builds_a_refreshing_chain():
         WebIdentityCredentialsProvider,
         SsoCredentialsProvider,
         ProfileCredentialsProvider,
+        ProcessCredentialsProvider,
     ]
     assert all(p._profile == "dev" for p in inner)  # noqa: SLF001  # the profile is threaded to every provider
 
@@ -56,19 +61,48 @@ def test_explicit_credentials_skip_the_profile_provider():
     assert storage._credentials_provider() is None  # noqa: SLF001
 
 
-def test_session_profile_chain_resolves_static_keys(tmp_path, monkeypatch):
-    # End-to-end: the role_arn / web_identity / SSO providers must skip cleanly (IdentityNotFound) so a
-    # plain static-key profile still resolves through the chain — proving the fallthrough is wired correctly.
-    creds_file = tmp_path / "credentials"
-    creds_file.write_text("[dev]\naws_access_key_id = AKIAEXAMPLE\naws_secret_access_key = secret123\n")
-    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(creds_file))
-    monkeypatch.setenv("AWS_CONFIG_FILE", str(tmp_path / "config"))  # empty: no role_arn/sso/web_identity
+@pytest.mark.parametrize(
+    ("credentials_file", "config_file", "expected_access_key"),
+    [
+        pytest.param(
+            "[dev]\naws_access_key_id = AKIASTATIC\naws_secret_access_key = secret123\n",
+            "",
+            "AKIASTATIC",
+            id="static-keys",
+        ),
+        pytest.param(
+            "",
+            "[profile dev]\ncredential_process = {helper}\n",
+            "AKIAPROCESS",
+            id="credential-process",
+        ),
+    ],
+)
+def test_when_a_session_profile_is_resolved_then_the_provider_holding_its_keys_is_reached(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    credentials_file: str,
+    config_file: str,
+    expected_access_key: str,
+) -> None:
+    # The providers ahead of the one holding the keys must skip cleanly (IdentityNotFound), otherwise the chain
+    # stops before reaching it.
+    helper = tmp_path / "helper.py"
+    helper.write_text(
+        'import json\nprint(json.dumps({"Version": 1, "AccessKeyId": "AKIAPROCESS", "SecretAccessKey": "secret123"}))\n'
+    )
+    (tmp_path / "credentials").write_text(credentials_file)
+    (tmp_path / "config").write_text(
+        config_file.format(helper=f"{shlex.quote(sys.executable)} {shlex.quote(str(helper))}")
+    )
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(tmp_path / "credentials"))
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(tmp_path / "config"))
     for var in ("AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_PROFILE"):
         monkeypatch.delenv(var, raising=False)
 
     provider = S3Storage(bucket="b", session_profile="dev")._credentials_provider()  # noqa: SLF001
     resolved = provider.resolve_identity()  # type: ignore[union-attr]
-    assert resolved["access_key"] == "AKIAEXAMPLE"
+    assert resolved["access_key"] == expected_access_key
     assert resolved["secret_key"] == "secret123"  # noqa: S105
 
 
