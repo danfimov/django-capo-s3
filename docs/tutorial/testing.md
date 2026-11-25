@@ -237,6 +237,21 @@ service take over again afterwards — which is how a retry or a fallback path g
 s3.fail("HeadObject", key="media/report.csv", code="AccessDenied", status=403, times=1)
 ```
 
+A failure that names a key reaches that key inside a bulk delete too, as long as it is for `DeleteObjects` or for no
+operation in particular. S3 does not fail a `DeleteObjects` request over one key: it deletes the rest and lists the
+refused key under `Errors`, so that is what the service answers. `delete_objects()` turns that into an `OSError`
+naming the key, and the object stays in place for the retry:
+
+```python
+s3.fail("DeleteObjects", key="media/b.csv", code="AccessDenied", times=1)
+
+with pytest.raises(OSError, match="AccessDenied"):
+    storage.delete_objects(["a.csv", "b.csv"])
+
+assert s3.keys() == ["media/b.csv"]
+storage.delete_objects(["b.csv"])  # the refusal ran out, so the retry goes through
+```
+
 For a reply that isn't an error, `s3.respond_with(response, operation=..., key=..., times=...)` takes any
 [zapros](https://zapros.dev/mocking.html) `Response`. Reach for it when the service won't produce what the
 test needs — a listing truncated at a chosen token, a header only some providers send:
