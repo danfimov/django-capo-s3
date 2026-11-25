@@ -3,7 +3,7 @@ import mimetypes
 import ssl
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import timedelta
-from typing import Any, Final, Protocol, TypedDict, TypeVar, cast
+from typing import Any, Final, Literal, Protocol, TypedDict, TypeVar, cast
 from urllib.parse import quote
 
 from capo_s3 import Credentials
@@ -57,6 +57,7 @@ class S3StorageOptions(TypedDict, total=False):
     session_profile: str | None
     skip_unchanged: bool
     retry_max_attempts: int | None
+    retry_mode: Literal["standard", "adaptive"] | None
     connect_timeout: float | None
     read_timeout: float | None
     write_timeout: float | None
@@ -105,6 +106,7 @@ DEFAULTS: Final[S3StorageOptions] = {
     "session_profile": None,
     "skip_unchanged": False,
     "retry_max_attempts": None,
+    "retry_mode": None,
     "connect_timeout": None,
     "read_timeout": None,
     "write_timeout": None,

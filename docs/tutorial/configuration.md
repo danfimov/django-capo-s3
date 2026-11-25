@@ -97,8 +97,8 @@ last three.
 
 `anonymous`, `skip_unchanged`, `default_content_type`, `multipart_threshold`, `multipart_chunksize`,
 `multipart_concurrency`, `connect_timeout`, `read_timeout`, `write_timeout`, `total_timeout`,
-`max_connections_per_host`, `retry_max_attempts`, `http_client_builder` and `http_handler` are set through
-`OPTIONS` only.
+`max_connections_per_host`, `retry_max_attempts`, `retry_mode`, `http_client_builder` and `http_handler` are set
+through `OPTIONS` only.
 
 ## Storing bytes under a known content type
 

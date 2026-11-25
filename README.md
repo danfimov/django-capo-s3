@@ -22,7 +22,8 @@ client instead of boto3 — a drop-in alternative to `django-storages[s3]`.
 - **Server-side encryption, storage class, cache-control, metadata, ...** — via `object_parameters`, passed straight
   through to the underlying request.
 - **Flexible networking options** — custom endpoint (e.g. MinIO), path- or virtual-host addressing, TLS verification and
-  custom CA bundles, connection timeouts, pool size, HTTP/HTTPS/SOCKS5 proxies, and retry attempts.
+  custom CA bundles, connection timeouts, pool size, HTTP/HTTPS/SOCKS5 proxies, retry attempts, and adaptive retries
+  that slow the whole client down while S3 throttles it.
 - **Test helpers** — `django_capo_s3.testing` ships an in-memory S3 service that speaks the real wire protocol:
   tests drive the actual backend with no bucket and no network, then assert on the requests it made.
 - **Fully typed** — this is already the bare minimum for new packages.
@@ -294,6 +295,7 @@ Tune timeouts, the connection pool, retries, TLS verification, and proxies as ne
     "read_timeout": 30.0,
     "max_connections_per_host": 50,
     "retry_max_attempts": 5,
+    "retry_mode": "adaptive",                     # slow every request down while S3 answers SlowDown
     "verify": "/etc/ssl/certs/internal-ca.pem",   # or False to disable TLS verification
     "proxies": {"https": "http://proxy.internal:8080"},
 }
