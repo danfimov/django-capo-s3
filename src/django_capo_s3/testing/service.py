@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.utils import format_datetime
-from typing import Self, Unpack
+from typing import TYPE_CHECKING, Self, Unpack
 from unittest.mock import patch
 from urllib.parse import parse_qsl, unquote
 
@@ -29,6 +29,9 @@ from django_capo_s3.core import S3StorageOptions
 from django_capo_s3.storage import S3Storage
 from django_capo_s3.testing.calls import S3Call, S3Calls, aread_body, read_body
 from django_capo_s3.testing.responses import not_found, s3_error, xml_response
+
+if TYPE_CHECKING:
+    from capo_s3.types.error import Error
 
 DEFAULT_BUCKET = "test-bucket"
 DEFAULT_REGION = "us-east-1"
@@ -112,6 +115,9 @@ class _Canned:
     operation: str | None
     key: str | None
     remaining: int | None
+    # Set by fail(), so DeleteObjects can refuse just this key inside a batch instead of answering for the batch.
+    error_code: str | None = None
+    error_message: str | None = None
 
     def matches(self, call: S3Call) -> bool:
         if self.remaining is not None and self.remaining <= 0:
@@ -259,12 +265,21 @@ class FakeS3(BaseHandler, AsyncBaseHandler):
         message: str | None = None,
         times: int | None = None,
     ) -> None:
-        """Make matching requests fail with an S3 error, for instance an AccessDenied on every upload."""
-        self.respond_with(
-            s3_error(code, status=status, message=message),
-            operation=operation,
-            key=key,
-            times=times,
+        """Make matching requests fail with an S3 error, for instance an AccessDenied on every upload.
+
+        A failure that names a key, for DeleteObjects or for no operation in particular, also reaches that key inside
+        a bulk delete: S3 lists it under the batch's Errors and deletes the rest, which is the partial failure that
+        bulk deletion code has to handle. Each key refused that way counts against times.
+        """
+        self._canned.append(
+            _Canned(
+                response=s3_error(code, status=status, message=message),
+                operation=operation,
+                key=key,
+                remaining=times,
+                error_code=code,
+                error_message=message,
+            )
         )
 
     def reset(self) -> None:
@@ -433,14 +448,33 @@ class FakeS3(BaseHandler, AsyncBaseHandler):
         quiet_element = root.find("Quiet")
         quiet = quiet_element is not None and (quiet_element.text or "").lower() == "true"
         deleted: list[str] = []
+        errors: list[Error] = []
         for element in root.findall("Object"):
             key_element = element.find("Key")
             key = (key_element.text or "") if key_element is not None else ""
-            _ = self.objects.pop((call.bucket, key), None)
-            deleted.append(key)
+            for canned in self._canned:
+                if canned.error_code is None or canned.key != key or canned.operation not in {None, "DeleteObjects"}:
+                    continue
+                if canned.remaining is not None:
+                    if canned.remaining <= 0:
+                        continue
+                    canned.remaining -= 1
+                errors.append(
+                    {
+                        "key": key,
+                        "code": canned.error_code,
+                        "message": canned.error_message if canned.error_message is not None else canned.error_code,
+                    }
+                )
+                break
+            else:
+                _ = self.objects.pop((call.bucket, key), None)
+                deleted.append(key)
         output: delete_objects_output.DeleteObjectsOutput = {}
         if not quiet:
             output["deleted"] = [{"key": key} for key in deleted]
+        if errors:  # S3 reports refused keys even in quiet mode, which only drops the successes
+            output["errors"] = errors
         return xml_response(delete_objects_output.serialize_xml, output, "DeleteResult")
 
     def _list_objects_v2(self, call: S3Call) -> Response:

@@ -321,6 +321,65 @@ def test_when_a_failure_names_a_key_then_only_that_object_fails(s3: FakeS3, s3_s
     assert s3.keys() == ["media/allowed.txt"]
 
 
+@pytest.mark.parametrize(
+    ("operation", "expected_left"),
+    [
+        pytest.param("DeleteObjects", ["media/1.txt"], id="bulk-delete-failure-refuses-the-named-key"),
+        pytest.param(None, ["media/1.txt"], id="failure-for-any-operation-reaches-the-batch"),
+        pytest.param("DeleteObject", [], id="single-delete-failure-leaves-the-batch-alone"),
+    ],
+)
+def test_when_a_failure_names_a_key_then_a_bulk_delete_refuses_only_that_key(
+    s3: FakeS3, s3_storage: S3Storage, operation: str | None, expected_left: list[str]
+):
+    for index in range(3):
+        s3.put(f"media/{index}.txt", b"x")
+    s3.fail(operation, key="media/1.txt", code="AccessDenied", status=403)
+
+    if expected_left:
+        with pytest.raises(OSError, match=r"media/1\.txt \(AccessDenied\)"):
+            s3_storage.delete_objects(["0.txt", "1.txt", "2.txt"])
+    else:
+        s3_storage.delete_objects(["0.txt", "1.txt", "2.txt"])
+
+    assert s3.keys() == expected_left
+
+
+def test_when_a_bulk_delete_refusal_runs_out_then_the_retry_deletes_the_key(s3: FakeS3, s3_storage: S3Storage):
+    s3.put("media/report.csv", b"a,b")
+    s3.fail("DeleteObjects", key="media/report.csv", code="AccessDenied", times=1)
+
+    with pytest.raises(OSError, match="AccessDenied"):
+        s3_storage.delete_objects(["report.csv"])
+    s3_storage.delete_objects(["report.csv"])
+
+    assert s3.keys() == []
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_message"),
+    [
+        pytest.param("Access Denied", "Access Denied", id="given-message"),
+        pytest.param("", "", id="empty-message-is-kept"),
+        pytest.param(None, "AccessDenied", id="no-message-falls-back-to-the-code"),
+    ],
+)
+def test_when_a_quiet_bulk_delete_is_refused_then_only_the_refusal_comes_back(
+    s3: FakeS3, s3_storage: S3Storage, message: str | None, expected_message: str
+):
+    s3.put("media/a.txt", b"x")
+    s3.put("media/b.txt", b"x")
+    s3.fail("DeleteObjects", key="media/a.txt", code="AccessDenied", message=message)
+
+    result = s3_storage.client.delete_objects(
+        s3.bucket, {"objects": [{"key": "media/a.txt"}, {"key": "media/b.txt"}], "quiet": True}
+    )
+
+    assert "deleted" not in result
+    assert result["errors"] == [{"key": "media/a.txt", "code": "AccessDenied", "message": expected_message}]
+    assert s3.keys() == ["media/a.txt"]
+
+
 def test_when_a_canned_response_runs_out_then_the_service_answers_again(s3: FakeS3, s3_storage: S3Storage):
     s3.put("media/report.csv", b"a,b,c")
     s3.respond_with(s3_error("AccessDenied", status=403), operation="HeadObject", times=1)
