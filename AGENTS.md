@@ -27,6 +27,7 @@ check `docs/django_storages_comparison.md` before "fixing" it.
       """Join ``location`` with ``name`` and return
       the result."""
 
+
   # === GOOD - names the things in plain words and explains what the caller gets ===
   def normalize_key(location: str, name: str) -> str:
       """Join the location prefix and a file name into an S3 object key.
@@ -55,12 +56,15 @@ check `docs/django_storages_comparison.md` before "fixing" it.
   # === BAD - a module constant and a helper used in one place each ===
   _GZIP_WINDOW_BITS = zlib.MAX_WBITS | 16
 
+
   def _make_decompressor() -> "zlib._Decompress":
       return zlib.decompressobj(_GZIP_WINDOW_BITS)
+
 
   def download_into(self, name: str, target: IO[bytes]) -> None:
       decompressor = _make_decompressor()
       ...
+
 
   # === GOOD - inlined at the single call site, with the magic number named where it is used ===
   def download_into(self, name: str, target: IO[bytes]) -> None:
@@ -91,6 +95,7 @@ check `docs/django_storages_comparison.md` before "fixing" it.
   # === BAD - names the method under test, not the behaviour, and needs a docstring to explain itself ===
   def test_save_overwrite(storage: S3Storage) -> None:
       """Check that saving twice under the same name replaces the first object."""
+
 
   # === GOOD - the name is the specification, so no docstring is needed ===
   def test_when_the_same_name_is_saved_twice_then_the_stored_object_is_overwritten(storage: S3Storage) -> None: ...

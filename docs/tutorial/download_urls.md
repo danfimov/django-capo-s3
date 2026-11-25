@@ -48,10 +48,10 @@ upload, so the browser can't send a 2 GB file or an HTML page where you expected
 ```python
 post = storage.presigned_post(
     "avatars/42.png",
-    expire=300,                # defaults to url_expire
+    expire=300,  # defaults to url_expire
     max_size=5 * 1024 * 1024,  # S3 rejects anything larger
 )
-post["url"]     # where the form posts to
+post["url"]  # where the form posts to
 post["fields"]  # hidden fields to send ahead of the file
 ```
 
