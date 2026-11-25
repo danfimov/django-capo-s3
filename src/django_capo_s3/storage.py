@@ -80,6 +80,11 @@ class S3Storage(Storage):
         if builder is not None and handler is None:
             msg = "http_client_builder does nothing without an http_handler to hand the builder to."
             raise ImproperlyConfigured(msg)
+        # capo takes any mode and treats everything but "adaptive" as standard, so a typo would silently turn off the
+        # client-side rate limiting it was meant to enable.
+        if merged.get("retry_mode") not in {None, "standard", "adaptive"}:
+            msg = f"retry_mode must be 'standard' or 'adaptive', got {merged.get('retry_mode')!r}."
+            raise ImproperlyConfigured(msg)
         # Only the storage's own options count: global AWS_* keys meant for other storages must not break this one.
         if merged.get("anonymous") and (options.get("credentials") or options.get("session_profile")):
             msg = "anonymous sends requests unsigned, so it cannot be combined with credentials or session_profile."
@@ -143,6 +148,7 @@ class S3Storage(Storage):
             credentials_provider=self._credentials_provider(),
             anonymous=self.options.get("anonymous"),
             retry_max_attempts=self.options.get("retry_max_attempts"),
+            retry_mode=self.options.get("retry_mode"),
             http_handler=self.http_handler,
         )
 

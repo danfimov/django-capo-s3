@@ -179,6 +179,27 @@ def test_when_an_anonymous_storage_is_also_given_credentials_then_only_its_own_o
                 S3Storage(bucket="b", anonymous=True, **options)
 
 
+@pytest.mark.parametrize(
+    ("retry_mode", "expected_error"),
+    [
+        pytest.param(None, None, id="unset-is-left-to-aws-retry-mode-and-the-profile"),
+        pytest.param("standard", None, id="standard"),
+        pytest.param("adaptive", None, id="adaptive"),
+        pytest.param("adaptiv", "retry_mode must be 'standard' or 'adaptive'", id="typo-fails-at-startup"),
+        pytest.param("legacy", "retry_mode must be 'standard' or 'adaptive'", id="legacy-is-not-offered"),
+    ],
+)
+def test_when_a_retry_mode_is_configured_then_the_client_is_built_with_it_or_the_storage_refuses_it(
+    retry_mode: str | None, expected_error: str | None
+):
+    if expected_error is None:
+        storage = S3Storage(bucket="b", retry_mode=retry_mode)  # type: ignore[typeddict-item]
+        assert storage.client._config["retry_mode"] == retry_mode  # noqa: SLF001
+    else:
+        with pytest.raises(ImproperlyConfigured, match=expected_error):
+            S3Storage(bucket="b", retry_mode=retry_mode)  # type: ignore[typeddict-item]
+
+
 def test_http_handler_must_be_a_callable():
     with pytest.raises(ImproperlyConfigured, match="http_handler must be a callable"):
         S3Storage(bucket="b", http_handler=StdNetworkHandler())  # type: ignore[typeddict-item]
